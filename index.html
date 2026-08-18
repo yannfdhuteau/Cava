@@ -129,6 +129,8 @@ main{ flex:1; padding:0 20px 100px; overflow-anchor:none; }
 }
 @keyframes fadein{ from{opacity:0; transform:translateY(4px);} to{opacity:1; transform:translateY(0);} }
 .card-top{ display:flex; justify-content:space-between; align-items:flex-start; gap:10px; }
+.card-left{ display:flex; gap:10px; align-items:flex-start; min-width:0; flex:1; }
+.card-thumb{ width:44px; height:44px; border-radius:9px; object-fit:cover; flex-shrink:0; background:var(--surface-2); border:1px solid var(--border); }
 .card-info{ min-width:0; }
 .card-bodega{
   font-family:'Fraunces', serif;
@@ -275,6 +277,30 @@ main{ flex:1; padding:0 20px 100px; overflow-anchor:none; }
 .detail-variety-label{ display:flex; justify-content:space-between; font-size:12.5px; color:var(--text-dim); margin-bottom:3px; }
 .detail-notes{ font-size:13.5px; color:var(--text-dim); line-height:1.5; background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:12px; margin-top:4px; }
 
+.photo-box{
+  position:relative; border-radius:var(--radius-sm); overflow:hidden; aspect-ratio:4/3;
+  background:var(--surface); border:1px dashed var(--border);
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px;
+  color:var(--text-faint);
+}
+.photo-box.empty{ cursor:pointer; }
+.photo-box.empty svg{ width:24px; height:24px; }
+.photo-box.empty span{ font-size:13px; }
+.photo-box.has-photo{ border-style:solid; }
+.photo-box img{ width:100%; height:100%; object-fit:cover; display:block; }
+.photo-remove{
+  position:absolute; top:8px; right:8px; width:28px; height:28px; border-radius:50%;
+  background:rgba(10,8,12,0.65); backdrop-filter:blur(4px); border:none; color:#fff;
+  font-size:17px; line-height:1; display:flex; align-items:center; justify-content:center;
+}
+.photo-change{
+  position:absolute; bottom:8px; left:50%; transform:translateX(-50%);
+  background:rgba(10,8,12,0.65); backdrop-filter:blur(4px); border:none; color:#fff;
+  font-size:12px; font-weight:600; padding:6px 12px; border-radius:999px;
+}
+.detail-photo{ border-radius:var(--radius); overflow:hidden; margin-bottom:16px; max-height:240px; }
+.detail-photo img{ width:100%; height:100%; object-fit:cover; display:block; max-height:240px; }
+
 /* ---------- Toast ---------- */
 .toast{
   position:fixed; left:50%; bottom:calc(84px + var(--safe-b)); transform:translateX(-50%);
@@ -360,7 +386,7 @@ main{ flex:1; padding:0 20px 100px; overflow-anchor:none; }
 
   /* ---------------- State ---------------- */
   var state = {
-    wines: [],       // {id,bodega,linea,anio,color,variedades:[{nombre,porcentaje}],region,notas,stock,createdAt}
+    wines: [],       // {id,bodega,linea,anio,color,variedades:[{nombre,porcentaje}],region,notas,foto,stock,createdAt}
     events: [],       // {id,wineId,tipo:'agregado'|'consumido',cantidad,fecha,snapshot:{bodega,linea,anio}}
     tab: 'cava',
     subtab: 'catalogo',
@@ -397,6 +423,29 @@ main{ flex:1; padding:0 20px 100px; overflow-anchor:none; }
     for(var i=0;i<n;i++){ html += BOTTLE_SVG; }
     html += '<span class="n">'+count+'</span></span>';
     return html;
+  }
+  // Resizes + compresses a photo client-side before storing it (label photos
+  // don't need full camera resolution, and storage quota is limited).
+  function resizeImage(file, maxDim, quality){
+    return new Promise(function(resolve, reject){
+      var reader = new FileReader();
+      reader.onload = function(e){
+        var img = new Image();
+        img.onload = function(){
+          var w = img.width, h = img.height;
+          if(w > h){ if(w > maxDim){ h = Math.round(h * maxDim / w); w = maxDim; } }
+          else { if(h > maxDim){ w = Math.round(w * maxDim / h); h = maxDim; } }
+          var canvas = document.createElement('canvas');
+          canvas.width = w; canvas.height = h;
+          canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+          resolve(canvas.toDataURL('image/jpeg', quality));
+        };
+        img.onerror = function(){ reject(new Error('No se pudo leer la imagen')); };
+        img.src = e.target.result;
+      };
+      reader.onerror = function(){ reject(new Error('No se pudo leer el archivo')); };
+      reader.readAsDataURL(file);
+    });
   }
 
   /* ---------------- Storage ----------------
@@ -489,6 +538,7 @@ main{ flex:1; padding:0 20px 100px; overflow-anchor:none; }
       id: uid(),
       bodega: data.bodega, linea: data.linea, anio: data.anio,
       color: data.color, variedades: data.variedades, region: data.region, notas: data.notas,
+      foto: data.foto || null,
       stock: data.cantidadInicial, createdAt: new Date().toISOString()
     };
     state.wines.push(w);
@@ -503,6 +553,7 @@ main{ flex:1; padding:0 20px 100px; overflow-anchor:none; }
     if(!w) return;
     w.bodega = data.bodega; w.linea = data.linea; w.anio = data.anio; w.color = data.color;
     w.variedades = data.variedades; w.region = data.region; w.notas = data.notas;
+    w.foto = data.foto || null;
     await saveWines();
     render();
     showToast('Vino actualizado');
@@ -566,12 +617,15 @@ main{ flex:1; padding:0 20px 100px; overflow-anchor:none; }
     return ''+
     '<div class="card" data-id="'+w.id+'">'+
       '<div class="card-top" data-open="'+w.id+'">'+
-        '<div class="card-info">'+
-          '<div class="card-bodega">'+escapeHtml(w.bodega)+'</div>'+
-          (w.linea ? '<div class="card-linea">'+escapeHtml(w.linea)+'</div>' : '')+
-          '<div class="card-meta">'+(w.anio || 'S/A')+'</div>'+
-          (vt ? '<div class="card-variety">'+vt+'</div>' : '')+
-          (w.region ? '<div class="card-region">'+escapeHtml(w.region)+'</div>' : '')+
+        '<div class="card-left">'+
+          (w.foto ? '<img class="card-thumb" src="'+w.foto+'" alt="">' : '')+
+          '<div class="card-info">'+
+            '<div class="card-bodega">'+escapeHtml(w.bodega)+'</div>'+
+            (w.linea ? '<div class="card-linea">'+escapeHtml(w.linea)+'</div>' : '')+
+            '<div class="card-meta">'+(w.anio || 'S/A')+'</div>'+
+            (vt ? '<div class="card-variety">'+vt+'</div>' : '')+
+            (w.region ? '<div class="card-region">'+escapeHtml(w.region)+'</div>' : '')+
+          '</div>'+
         '</div>'+
         bottlesHTML(w.stock, colorHex)+
       '</div>'+
@@ -636,10 +690,13 @@ main{ flex:1; padding:0 20px 100px; overflow-anchor:none; }
       var t = typeInfo(w.color);
       var vt = varietyText(w);
       html += '<div class="cat-row" data-open="'+w.id+'">'+
-        '<div class="card-info">'+
-          '<div class="card-bodega">'+escapeHtml(w.bodega)+'</div>'+
-          (w.linea ? '<div class="card-linea">'+escapeHtml(w.linea)+'</div>' : '')+
-          '<div class="card-meta">'+t.label+' · '+(w.anio || 'S/A')+(vt ? ' · '+vt : '')+'</div>'+
+        '<div class="card-left">'+
+          (w.foto ? '<img class="card-thumb" src="'+w.foto+'" alt="">' : '')+
+          '<div class="card-info">'+
+            '<div class="card-bodega">'+escapeHtml(w.bodega)+'</div>'+
+            (w.linea ? '<div class="card-linea">'+escapeHtml(w.linea)+'</div>' : '')+
+            '<div class="card-meta">'+t.label+' · '+(w.anio || 'S/A')+(vt ? ' · '+vt : '')+'</div>'+
+          '</div>'+
         '</div>'+
         '<div style="display:flex; flex-direction:column; align-items:flex-end; gap:8px;">'+
           '<span class="stock-pill'+(w.stock>0?' has':'')+'">'+w.stock+' en stock</span>'+
@@ -702,6 +759,7 @@ main{ flex:1; padding:0 20px 100px; overflow-anchor:none; }
     var vs = (w.variedades||[]).filter(function(v){return v.nombre;});
     var sheet = document.getElementById('sheet');
     var html = '<div class="sheet-handle"></div>'+
+      (w.foto ? '<div class="detail-photo"><img src="'+w.foto+'" alt=""></div>' : '')+
       '<h2>'+escapeHtml(w.bodega)+'</h2>'+
       (w.linea ? '<div class="sub" style="font-style:italic; font-family:Fraunces,serif; font-size:15px; color:var(--text-dim); margin-bottom:2px;">'+escapeHtml(w.linea)+'</div>' : '')+
       '<div class="sub">'+t.label+' · '+(w.anio||'S/A')+(w.region ? ' · '+escapeHtml(w.region) : '')+'</div>';
@@ -772,7 +830,22 @@ main{ flex:1; padding:0 20px 100px; overflow-anchor:none; }
   function openNewWineForm(editId){
     var w = editId ? findWine(editId) : null;
     var varieties = (w && w.variedades && w.variedades.length) ? w.variedades.slice() : [{nombre:'', porcentaje:''}];
+    var currentFoto = w ? (w.foto || null) : null;
     var sheet = document.getElementById('sheet');
+
+    function photoBoxHTML(){
+      if(currentFoto){
+        return '<div class="photo-box has-photo">'+
+          '<img src="'+currentFoto+'" alt="">'+
+          '<button type="button" class="photo-remove" id="photo-remove" aria-label="Quitar foto">&times;</button>'+
+          '<button type="button" class="photo-change" id="photo-change">Cambiar foto</button>'+
+        '</div>';
+      }
+      return '<div class="photo-box empty" id="photo-tap">'+
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 8a2 2 0 0 1 2-2h1.5l1-1.5h7l1 1.5H18a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8z"/><circle cx="12" cy="13" r="3.5"/></svg>'+
+        '<span>Sacar foto de la etiqueta</span>'+
+      '</div>';
+    }
 
     function fieldsHTML(){
       var typeOptions = TYPES.map(function(t){
@@ -789,6 +862,9 @@ main{ flex:1; padding:0 20px 100px; overflow-anchor:none; }
       return '<div class="sheet-handle"></div>'+
         '<h2>'+(w?'Editar vino':'Nuevo vino')+'</h2>'+
         '<div class="sub">'+(w?'Actualizá los datos de este vino.':'Cargá los datos una vez; después lo repetís desde el Catálogo.')+'</div>'+
+        '<div class="field">'+photoBoxHTML()+
+          '<input type="file" accept="image/*" capture="environment" id="f-foto-input" style="display:none">'+
+        '</div>'+
         '<div class="field"><label>Bodega *</label><input type="text" id="f-bodega" value="'+(w?escapeHtml(w.bodega):'')+'" placeholder="Ej. Catena Zapata"></div>'+
         '<div class="field"><label>Línea / marca</label><input type="text" id="f-linea" value="'+(w?escapeHtml(w.linea||''):'')+'" placeholder="Ej. Nicolás Catena Zapata"></div>'+
         '<div class="row2">'+
@@ -806,6 +882,26 @@ main{ flex:1; padding:0 20px 100px; overflow-anchor:none; }
           '<button class="btn btn-ghost" style="flex:1" id="f-cancel">Cancelar</button>'+
           '<button class="btn btn-primary" style="flex:2" id="f-save">'+(w?'Guardar cambios':'Agregar a la cava')+'</button>'+
         '</div>';
+    }
+
+    function bindPhotoEvents(){
+      var tapEl = document.getElementById('photo-tap');
+      if(tapEl){ tapEl.addEventListener('click', function(){ document.getElementById('f-foto-input').click(); }); }
+      var changeBtn = document.getElementById('photo-change');
+      if(changeBtn){ changeBtn.addEventListener('click', function(){ document.getElementById('f-foto-input').click(); }); }
+      var removeBtn = document.getElementById('photo-remove');
+      if(removeBtn){ removeBtn.addEventListener('click', function(){ currentFoto = null; rebuild(); }); }
+      var input = document.getElementById('f-foto-input');
+      if(input){
+        input.addEventListener('change', async function(){
+          var file = input.files && input.files[0];
+          if(!file) return;
+          try{
+            currentFoto = await resizeImage(file, 640, 0.68);
+            rebuild();
+          }catch(err){ showToast('No se pudo procesar la foto'); }
+        });
+      }
     }
 
     function bindVarietyEvents(){
@@ -845,6 +941,8 @@ main{ flex:1; padding:0 20px 100px; overflow-anchor:none; }
       var color = document.getElementById('f-color').value;
       var region = document.getElementById('f-region').value;
       var notas = document.getElementById('f-notas').value;
+      var cantEl = document.getElementById('f-cantidad');
+      var cantidad = cantEl ? cantEl.value : null;
       sheet.innerHTML = fieldsHTML();
       document.getElementById('f-bodega').value = bodega;
       document.getElementById('f-linea').value = linea;
@@ -852,6 +950,9 @@ main{ flex:1; padding:0 20px 100px; overflow-anchor:none; }
       document.getElementById('f-color').value = color;
       document.getElementById('f-region').value = region;
       document.getElementById('f-notas').value = notas;
+      var newCantEl = document.getElementById('f-cantidad');
+      if(newCantEl && cantidad !== null) newCantEl.value = cantidad;
+      bindPhotoEvents();
       bindVarietyEvents();
       bindFormActions();
     }
@@ -869,7 +970,8 @@ main{ flex:1; padding:0 20px 100px; overflow-anchor:none; }
           color: color,
           variedades: varieties.filter(function(v){ return v.nombre.trim(); }).map(function(v){ return {nombre:v.nombre.trim(), porcentaje:v.porcentaje?Number(v.porcentaje):''}; }),
           region: document.getElementById('f-region').value.trim(),
-          notas: document.getElementById('f-notas').value.trim()
+          notas: document.getElementById('f-notas').value.trim(),
+          foto: currentFoto
         };
         if(w){
           await updateWine(w.id, data);
@@ -884,6 +986,7 @@ main{ flex:1; padding:0 20px 100px; overflow-anchor:none; }
 
     sheet.innerHTML = fieldsHTML();
     openSheet();
+    bindPhotoEvents();
     bindVarietyEvents();
     bindFormActions();
   }
