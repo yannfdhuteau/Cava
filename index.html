@@ -1,0 +1,931 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#15111a">
+<title>Cava</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,500&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+:root{
+  --bg:#15111a;
+  --bg-elev:#1c1620;
+  --surface:#241c2a;
+  --surface-2:#2c2332;
+  --border:#382c3e;
+  --wine:#8c2f39;
+  --wine-light:#b5525c;
+  --gold:#c9a66b;
+  --straw:#d9c88e;
+  --rose:#d98a9c;
+  --amber:#a8763e;
+  --text:#ede6dc;
+  --text-dim:#a8969e;
+  --text-faint:#6f6070;
+  --danger:#c0505a;
+  --radius:16px;
+  --radius-sm:10px;
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-t: env(safe-area-inset-top, 0px);
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+html,body{margin:0; padding:0;}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:'Inter',system-ui,sans-serif;
+  min-height:100dvh;
+  -webkit-font-smoothing:antialiased;
+}
+#app{
+  max-width:480px;
+  margin:0 auto;
+  min-height:100dvh;
+  position:relative;
+  display:flex;
+  flex-direction:column;
+  background:
+    radial-gradient(ellipse 600px 300px at 50% 0%, rgba(140,47,57,0.14), transparent 70%),
+    var(--bg);
+}
+::selection{background:var(--wine); color:#fff;}
+button{font-family:inherit; cursor:pointer;}
+input, select, textarea{font-family:inherit; color:var(--text);}
+:focus-visible{outline:2px solid var(--gold); outline-offset:2px;}
+
+/* ---------- Topbar ---------- */
+.topbar{
+  padding:calc(20px + var(--safe-t)) 20px 14px;
+  display:flex; flex-direction:column; gap:2px;
+}
+.topbar h1{
+  font-family:'Fraunces', serif;
+  font-style:italic;
+  font-weight:500;
+  font-size:32px;
+  margin:0;
+  letter-spacing:-0.01em;
+}
+.topbar .stats{
+  font-family:'IBM Plex Mono', monospace;
+  font-size:11px;
+  letter-spacing:0.06em;
+  text-transform:uppercase;
+  color:var(--text-faint);
+}
+
+/* ---------- Search ---------- */
+.search-wrap{ padding:0 20px 14px; }
+.search-wrap input{
+  width:100%;
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:12px;
+  padding:11px 14px;
+  color:var(--text);
+  font-size:15px;
+}
+.search-wrap input::placeholder{ color:var(--text-faint); }
+
+/* ---------- Subtabs (Historial) ---------- */
+.subtabs{ display:flex; gap:8px; padding:0 20px 14px; }
+.subtab{
+  background:transparent;
+  border:1px solid var(--border);
+  color:var(--text-dim);
+  padding:7px 14px;
+  border-radius:999px;
+  font-size:13px;
+  font-weight:500;
+  transition:background .15s, color .15s, border-color .15s;
+}
+.subtab.active{ background:var(--wine); border-color:var(--wine); color:#fff; }
+
+/* ---------- Content ---------- */
+main{ flex:1; padding:0 20px 100px; overflow-anchor:none; }
+.section-label{
+  font-family:'IBM Plex Mono', monospace;
+  font-size:11px;
+  letter-spacing:0.1em;
+  text-transform:uppercase;
+  color:var(--text-faint);
+  margin:22px 0 10px;
+  display:flex; align-items:center; gap:8px;
+}
+.section-label .dot{ width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+.section-label:first-child{ margin-top:4px; }
+
+/* ---------- Wine card ---------- */
+.card{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  padding:14px 14px 12px;
+  margin-bottom:10px;
+  animation:fadein .35s ease both;
+}
+@keyframes fadein{ from{opacity:0; transform:translateY(4px);} to{opacity:1; transform:translateY(0);} }
+.card-top{ display:flex; justify-content:space-between; align-items:flex-start; gap:10px; }
+.card-info{ min-width:0; }
+.card-bodega{
+  font-family:'Fraunces', serif;
+  font-weight:600;
+  font-size:18px;
+  line-height:1.2;
+  overflow-wrap:break-word;
+}
+.card-linea{
+  font-family:'Fraunces', serif;
+  font-style:italic;
+  font-size:14px;
+  color:var(--text-dim);
+  margin-top:1px;
+}
+.card-meta{
+  font-family:'IBM Plex Mono', monospace;
+  font-size:12px;
+  color:var(--text-dim);
+  margin-top:6px;
+}
+.card-variety{ font-size:12.5px; color:var(--text-dim); margin-top:3px; }
+.card-region{ font-size:11.5px; color:var(--text-faint); margin-top:3px; }
+
+.bottles{ display:flex; align-items:center; gap:3px; flex-shrink:0; }
+.bottles svg{ width:9px; height:24px; }
+.bottles .n{ font-family:'IBM Plex Mono', monospace; font-size:13px; margin-left:5px; color:var(--text-dim); }
+
+.card-actions{ display:flex; gap:8px; margin-top:12px; }
+.btn{
+  border:none; border-radius:10px; padding:9px 12px; font-size:13px; font-weight:600;
+  display:flex; align-items:center; justify-content:center; gap:6px;
+  transition:transform .1s, opacity .15s;
+}
+.btn:active{ transform:scale(0.96); }
+.btn-uncork{ background:var(--surface-2); color:var(--text); border:1px solid var(--border); flex:1; }
+.btn-add{ background:rgba(201,166,107,0.14); color:var(--gold); border:1px solid rgba(201,166,107,0.3); flex:1; }
+.btn-primary{ background:var(--wine); color:#fff; }
+.btn-ghost{ background:transparent; color:var(--text-dim); border:1px solid var(--border); }
+.btn-danger{ background:transparent; color:var(--danger); border:1px solid rgba(192,80,90,0.4); }
+.btn-block{ width:100%; }
+.btn:disabled{ opacity:0.35; pointer-events:none; }
+
+/* ---------- Catalogo row ---------- */
+.cat-row{
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-sm);
+  padding:12px 14px; margin-bottom:8px; display:flex; align-items:center; justify-content:space-between; gap:10px;
+  animation:fadein .3s ease both;
+}
+.cat-row .card-info{ flex:1; min-width:0; }
+.cat-row .card-bodega{ font-size:16px; }
+.stock-pill{
+  font-family:'IBM Plex Mono', monospace; font-size:11px; padding:3px 8px; border-radius:999px;
+  border:1px solid var(--border); color:var(--text-faint); white-space:nowrap;
+}
+.stock-pill.has{ color:var(--gold); border-color:rgba(201,166,107,0.35); }
+
+/* ---------- Registro ---------- */
+.log-row{ display:flex; gap:12px; padding:12px 0; border-bottom:1px solid var(--border); }
+.log-row:last-child{ border-bottom:none; }
+.log-icon{
+  width:30px; height:30px; border-radius:50%; flex-shrink:0;
+  display:flex; align-items:center; justify-content:center;
+  background:var(--surface-2); border:1px solid var(--border);
+}
+.log-icon svg{ width:14px; height:14px; }
+.log-text{ font-size:14px; line-height:1.4; }
+.log-text b{ font-weight:600; }
+.log-date{ font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--text-faint); margin-top:2px; }
+
+/* ---------- Empty state ---------- */
+.empty{ text-align:center; padding:60px 20px 20px; color:var(--text-dim); }
+.empty svg{ width:40px; height:40px; color:var(--text-faint); margin-bottom:14px; }
+.empty h3{ font-family:'Fraunces', serif; font-weight:500; font-size:19px; color:var(--text); margin:0 0 6px; }
+.empty p{ font-size:13.5px; line-height:1.5; margin:0 0 18px; color:var(--text-dim); }
+
+/* ---------- Tabbar ---------- */
+.tabbar{
+  position:sticky; bottom:0; left:0; right:0;
+  display:flex; background:rgba(28,22,32,0.92); backdrop-filter:blur(14px);
+  border-top:1px solid var(--border);
+  padding-bottom:var(--safe-b);
+}
+.tab{
+  flex:1; display:flex; flex-direction:column; align-items:center; gap:3px;
+  background:none; border:none; padding:12px 0 10px; color:var(--text-faint);
+}
+.tab svg{ width:20px; height:20px; }
+.tab span{ font-size:11px; font-weight:500; }
+.tab.active{ color:var(--gold); }
+
+/* ---------- FAB ---------- */
+.fab{
+  position:fixed; right:calc(50% - 240px + 20px); bottom:calc(74px + var(--safe-b));
+  width:54px; height:54px; border-radius:50%; background:var(--wine); color:#fff; border:none;
+  display:flex; align-items:center; justify-content:center; box-shadow:0 8px 20px rgba(140,47,57,0.45);
+  z-index:20;
+}
+@media (max-width:520px){ .fab{ right:20px; } }
+.fab svg{ width:22px; height:22px; }
+.fab:active{ transform:scale(0.94); }
+
+/* ---------- Overlay / Sheet ---------- */
+.overlay{
+  position:fixed; inset:0; background:rgba(10,8,12,0.6); z-index:50;
+  display:flex; align-items:flex-end; justify-content:center;
+}
+.sheet{
+  width:100%; max-width:480px; max-height:88dvh; overflow-y:auto;
+  background:var(--bg-elev); border-radius:22px 22px 0 0; border:1px solid var(--border); border-bottom:none;
+  padding:18px 20px calc(24px + var(--safe-b));
+  animation:sheetup .25s cubic-bezier(.2,.8,.3,1) both;
+}
+@keyframes sheetup{ from{ transform:translateY(24px); opacity:0; } to{ transform:translateY(0); opacity:1; } }
+.sheet-handle{ width:36px; height:4px; background:var(--border); border-radius:99px; margin:0 auto 16px; }
+.sheet h2{ font-family:'Fraunces', serif; font-weight:600; font-size:22px; margin:0 0 4px; }
+.sheet .sub{ font-size:13px; color:var(--text-dim); margin-bottom:16px; }
+
+.field{ margin-bottom:14px; }
+.field label{ display:block; font-size:12px; color:var(--text-dim); margin-bottom:6px; font-weight:500; }
+.field input, .field select, .field textarea{
+  width:100%; background:var(--surface); border:1px solid var(--border); border-radius:10px;
+  padding:11px 12px; font-size:15px;
+}
+.field textarea{ resize:vertical; min-height:60px; }
+.row2{ display:flex; gap:10px; }
+.row2 .field{ flex:1; }
+
+.variety-row{ display:flex; gap:8px; align-items:center; margin-bottom:8px; }
+.variety-row input[type=text]{ flex:2; }
+.variety-row input[type=number]{ flex:1; width:70px; }
+.variety-row .rm{ background:none; border:none; color:var(--text-faint); font-size:20px; line-height:1; padding:4px 6px; flex-shrink:0; }
+.variety-sum{ font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--text-faint); margin:-2px 0 12px; }
+.link-btn{ background:none; border:none; color:var(--gold); font-size:13px; font-weight:600; padding:4px 0; }
+
+.stepper{ display:flex; align-items:center; gap:14px; justify-content:center; margin:6px 0 16px; }
+.stepper button{ width:38px; height:38px; border-radius:50%; background:var(--surface-2); border:1px solid var(--border); color:var(--text); font-size:18px; }
+.stepper .val{ font-family:'IBM Plex Mono', monospace; font-size:20px; min-width:30px; text-align:center; }
+
+.sheet-actions{ display:flex; gap:10px; margin-top:6px; }
+.detail-varbar{ height:6px; border-radius:99px; background:var(--surface-2); overflow:hidden; margin-top:4px; }
+.detail-varbar span{ display:block; height:100%; }
+.detail-variety-row{ margin-bottom:8px; }
+.detail-variety-label{ display:flex; justify-content:space-between; font-size:12.5px; color:var(--text-dim); margin-bottom:3px; }
+.detail-notes{ font-size:13.5px; color:var(--text-dim); line-height:1.5; background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:12px; margin-top:4px; }
+
+/* ---------- Toast ---------- */
+.toast{
+  position:fixed; left:50%; bottom:calc(84px + var(--safe-b)); transform:translateX(-50%);
+  background:var(--surface-2); border:1px solid var(--border); color:var(--text);
+  padding:11px 14px; border-radius:12px; font-size:13.5px; display:flex; align-items:center; gap:12px;
+  box-shadow:0 10px 24px rgba(0,0,0,0.4); z-index:60; max-width:calc(100% - 40px);
+  animation:toastup .2s ease both;
+}
+@keyframes toastup{ from{opacity:0; transform:translate(-50%,8px);} to{opacity:1; transform:translate(-50%,0);} }
+.toast button{ background:none; border:none; color:var(--gold); font-weight:700; font-size:13px; flex-shrink:0; }
+
+[hidden]{ display:none !important; }
+
+@media (prefers-reduced-motion: reduce){
+  *{ animation-duration:0.001ms !important; transition-duration:0.001ms !important; }
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <div class="topbar">
+    <h1>Cava</h1>
+    <div class="stats" id="stats"></div>
+  </div>
+
+  <div class="search-wrap">
+    <input type="text" id="search" placeholder="Buscar bodega, línea, variedad…">
+  </div>
+
+  <!-- CAVA VIEW -->
+  <main id="view-cava"></main>
+
+  <!-- HISTORIAL VIEW -->
+  <main id="view-historial" hidden>
+    <div class="subtabs">
+      <button class="subtab active" data-sub="catalogo">Catálogo</button>
+      <button class="subtab" data-sub="registro">Registro</button>
+    </div>
+    <div id="historial-content"></div>
+  </main>
+
+  <nav class="tabbar">
+    <button class="tab active" data-tab="cava">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 2h6v5.2c0 1 .35 2 1 2.8.85 1.05 1.3 2.35 1.3 3.7V20a2 2 0 0 1-2 2H9.7a2 2 0 0 1-2-2v-6.3c0-1.35.45-2.65 1.3-3.7.65-.8 1-1.8 1-2.8V2z"/></svg>
+      <span>Cava</span>
+    </button>
+    <button class="tab" data-tab="historial">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>
+      <span>Historial</span>
+    </button>
+  </nav>
+
+  <button class="fab" id="fab" aria-label="Nuevo vino">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+  </button>
+</div>
+
+<div class="overlay" id="overlay" hidden>
+  <div class="sheet" id="sheet"></div>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ---------------- Constants ---------------- */
+  var TYPES = [
+    {id:'tinto', label:'Tinto', color:'#8c2f39'},
+    {id:'blanco', label:'Blanco', color:'#d9c88e'},
+    {id:'rosado', label:'Rosado', color:'#d98a9c'},
+    {id:'espumante', label:'Espumante', color:'#c9a66b'},
+    {id:'dulce', label:'Dulce / Generoso', color:'#a8763e'}
+  ];
+  function typeInfo(id){ return TYPES.find(function(t){return t.id===id;}) || TYPES[0]; }
+
+  var WINES_KEY = 'cava:wines';
+  var EVENTS_KEY = 'cava:events';
+
+  var BOTTLE_SVG = '<svg viewBox="0 0 12 32" fill="currentColor"><path d="M5 0h2v3.6c0 .75.3 1.45.85 2.05C8.55 6.35 9 7.35 9 8.55V29.5A2.5 2.5 0 0 1 6.5 32h-1A2.5 2.5 0 0 1 3 29.5V8.55c0-1.2.45-2.2 1.15-2.9C4.7 5.05 5 4.35 5 3.6V0z"/></svg>';
+
+  /* ---------------- State ---------------- */
+  var state = {
+    wines: [],       // {id,bodega,linea,anio,color,variedades:[{nombre,porcentaje}],region,notas,stock,createdAt}
+    events: [],       // {id,wineId,tipo:'agregado'|'consumido',cantidad,fecha,snapshot:{bodega,linea,anio}}
+    tab: 'cava',
+    subtab: 'catalogo',
+    search: '',
+    lastAction: null
+  };
+
+  /* ---------------- Utils ---------------- */
+  function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+  function normalize(s){
+    return (s||'').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  }
+  function fmtDate(iso){
+    var d = new Date(iso);
+    return d.toLocaleDateString('es-AR', {day:'numeric', month:'short', year:'numeric'});
+  }
+  function escapeHtml(s){
+    return (s||'').toString().replace(/[&<>"']/g, function(c){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+    });
+  }
+  function varietyText(w){
+    var vs = (w.variedades||[]).filter(function(v){ return v.nombre; });
+    if(vs.length===0) return '';
+    if(vs.length===1) return escapeHtml(vs[0].nombre);
+    return vs.map(function(v){
+      return escapeHtml(v.nombre) + (v.porcentaje ? ' ' + v.porcentaje + '%' : '');
+    }).join(' · ');
+  }
+  function bottlesHTML(count, colorHex){
+    var cap = 8;
+    var n = Math.min(count, cap);
+    var html = '<span class="bottles" style="color:'+colorHex+'">';
+    for(var i=0;i<n;i++){ html += BOTTLE_SVG; }
+    html += '<span class="n">'+count+'</span></span>';
+    return html;
+  }
+
+  /* ---------------- Storage ----------------
+     Uses window.storage when running inside a Claude artifact preview
+     (persists per-user, cross-session, cross-device via Claude).
+     Falls back to localStorage when opened as a standalone file/PWA
+     (e.g. hosted and added to the iPhone home screen), since
+     window.storage only exists inside Claude's own sandbox. */
+  var hasCloudStorage = (typeof window.storage !== 'undefined') && !!window.storage;
+
+  async function loadData(){
+    if(hasCloudStorage){
+      try{
+        var w = await window.storage.get(WINES_KEY);
+        state.wines = w ? JSON.parse(w.value) : [];
+      }catch(e){ state.wines = []; }
+      try{
+        var ev = await window.storage.get(EVENTS_KEY);
+        state.events = ev ? JSON.parse(ev.value) : [];
+      }catch(e){ state.events = []; }
+    } else {
+      try{ state.wines = JSON.parse(localStorage.getItem(WINES_KEY) || '[]'); }
+      catch(e){ state.wines = []; }
+      try{ state.events = JSON.parse(localStorage.getItem(EVENTS_KEY) || '[]'); }
+      catch(e){ state.events = []; }
+    }
+  }
+  async function saveWines(){
+    try{
+      if(hasCloudStorage){ await window.storage.set(WINES_KEY, JSON.stringify(state.wines), false); }
+      else{ localStorage.setItem(WINES_KEY, JSON.stringify(state.wines)); }
+    }catch(e){ showToast('No se pudo guardar. Reintentá.'); }
+  }
+  async function saveEvents(){
+    try{
+      if(hasCloudStorage){ await window.storage.set(EVENTS_KEY, JSON.stringify(state.events), false); }
+      else{ localStorage.setItem(EVENTS_KEY, JSON.stringify(state.events)); }
+    }catch(e){ showToast('No se pudo guardar el registro.'); }
+  }
+
+  /* ---------------- Data ops ---------------- */
+  function findWine(id){ return state.wines.find(function(w){ return w.id===id; }); }
+
+  function logEvent(wine, tipo, cantidad){
+    state.events.unshift({
+      id: uid(),
+      wineId: wine.id,
+      tipo: tipo,
+      cantidad: cantidad,
+      fecha: new Date().toISOString(),
+      snapshot: {bodega:wine.bodega, linea:wine.linea, anio:wine.anio}
+    });
+  }
+
+  async function uncork(id){
+    var w = findWine(id);
+    if(!w || w.stock<=0) return;
+    w.stock -= 1;
+    logEvent(w, 'consumido', 1);
+    await saveWines(); await saveEvents();
+    state.lastAction = {type:'undo-uncork', wineId:id, eventId: state.events[0].id};
+    render();
+    showToast('Descorchaste ' + w.bodega + (w.linea ? ' — '+w.linea : ''), 'Deshacer', undoLastAction);
+  }
+
+  async function addStock(id, cantidad){
+    var w = findWine(id);
+    if(!w) return;
+    w.stock += cantidad;
+    logEvent(w, 'agregado', cantidad);
+    await saveWines(); await saveEvents();
+    render();
+    showToast('Agregaste ' + cantidad + ' botella' + (cantidad>1?'s':'') + ' de ' + w.bodega);
+  }
+
+  async function undoLastAction(){
+    var a = state.lastAction;
+    if(!a || a.type!=='undo-uncork') return;
+    var w = findWine(a.wineId);
+    if(w){ w.stock += 1; }
+    state.events = state.events.filter(function(e){ return e.id !== a.eventId; });
+    state.lastAction = null;
+    await saveWines(); await saveEvents();
+    hideToast();
+    render();
+  }
+
+  async function createWine(data){
+    var w = {
+      id: uid(),
+      bodega: data.bodega, linea: data.linea, anio: data.anio,
+      color: data.color, variedades: data.variedades, region: data.region, notas: data.notas,
+      stock: data.cantidadInicial, createdAt: new Date().toISOString()
+    };
+    state.wines.push(w);
+    if(data.cantidadInicial > 0){ logEvent(w, 'agregado', data.cantidadInicial); await saveEvents(); }
+    await saveWines();
+    render();
+    showToast('Agregaste ' + w.bodega + ' a tu cava');
+  }
+
+  async function updateWine(id, data){
+    var w = findWine(id);
+    if(!w) return;
+    w.bodega = data.bodega; w.linea = data.linea; w.anio = data.anio; w.color = data.color;
+    w.variedades = data.variedades; w.region = data.region; w.notas = data.notas;
+    await saveWines();
+    render();
+    showToast('Vino actualizado');
+  }
+
+  async function deleteWine(id){
+    state.wines = state.wines.filter(function(w){ return w.id !== id; });
+    await saveWines();
+    render();
+    showToast('Vino eliminado');
+  }
+
+  /* ---------------- Toast ---------------- */
+  var toastTimer = null;
+  function showToast(msg, actionLabel, actionFn){
+    var el = document.getElementById('toast');
+    el.innerHTML = '<span>'+escapeHtml(msg)+'</span>' + (actionLabel ? '<button id="toast-action">'+escapeHtml(actionLabel)+'</button>' : '');
+    el.hidden = false;
+    if(actionLabel && actionFn){ document.getElementById('toast-action').onclick = actionFn; }
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(hideToast, 5500);
+  }
+  function hideToast(){ document.getElementById('toast').hidden = true; }
+
+  /* ---------------- Rendering: Cava tab ---------------- */
+  function renderCava(){
+    var main = document.getElementById('view-cava');
+    var q = normalize(state.search);
+    var active = state.wines.filter(function(w){ return w.stock > 0; });
+    if(q){
+      active = active.filter(function(w){
+        var hay = normalize([w.bodega,w.linea,w.region,typeInfo(w.color).label].concat((w.variedades||[]).map(function(v){return v.nombre;})).join(' '));
+        return hay.indexOf(q) !== -1;
+      });
+    }
+
+    if(state.wines.length === 0){
+      main.innerHTML = emptyStateHTML('cava-vacia');
+      bindEmptyCTA();
+      return;
+    }
+    if(active.length === 0){
+      main.innerHTML = '<div class="empty"><h3>Sin resultados</h3><p>No encontramos vinos que coincidan con tu búsqueda.</p></div>';
+      return;
+    }
+
+    var html = '';
+    TYPES.forEach(function(t){
+      var group = active.filter(function(w){ return (w.color||'tinto')===t.id; });
+      if(group.length===0) return;
+      group.sort(function(a,b){ return a.bodega.localeCompare(b.bodega); });
+      html += '<div class="section-label"><span class="dot" style="background:'+t.color+'"></span>'+t.label+' · '+group.length+'</div>';
+      group.forEach(function(w){ html += cavaCardHTML(w, t.color); });
+    });
+    main.innerHTML = html;
+    bindCavaCardEvents(main);
+  }
+
+  function cavaCardHTML(w, colorHex){
+    var vt = varietyText(w);
+    return ''+
+    '<div class="card" data-id="'+w.id+'">'+
+      '<div class="card-top" data-open="'+w.id+'">'+
+        '<div class="card-info">'+
+          '<div class="card-bodega">'+escapeHtml(w.bodega)+'</div>'+
+          (w.linea ? '<div class="card-linea">'+escapeHtml(w.linea)+'</div>' : '')+
+          '<div class="card-meta">'+(w.anio || 'S/A')+'</div>'+
+          (vt ? '<div class="card-variety">'+vt+'</div>' : '')+
+          (w.region ? '<div class="card-region">'+escapeHtml(w.region)+'</div>' : '')+
+        '</div>'+
+        bottlesHTML(w.stock, colorHex)+
+      '</div>'+
+      '<div class="card-actions">'+
+        '<button class="btn btn-uncork" data-uncork="'+w.id+'">Descorchar</button>'+
+        '<button class="btn btn-add" data-quickadd="'+w.id+'">+ Agregar</button>'+
+      '</div>'+
+    '</div>';
+  }
+
+  function bindCavaCardEvents(container){
+    container.querySelectorAll('[data-open]').forEach(function(el){
+      el.addEventListener('click', function(){ openDetail(el.getAttribute('data-open')); });
+    });
+    container.querySelectorAll('[data-uncork]').forEach(function(el){
+      el.addEventListener('click', function(e){ e.stopPropagation(); uncork(el.getAttribute('data-uncork')); });
+    });
+    container.querySelectorAll('[data-quickadd]').forEach(function(el){
+      el.addEventListener('click', function(e){ e.stopPropagation(); addStock(el.getAttribute('data-quickadd'), 1); });
+    });
+  }
+
+  function emptyStateHTML(kind){
+    var texts = {
+      'cava-vacia': ['Tu cava está vacía', 'Agregá tu primer vino para empezar a llevar el control del stock.'],
+      'catalogo-vacio': ['Todavía no cargaste vinos', 'Los vinos que agregues van a quedar guardados acá para siempre.'],
+      'registro-vacio': ['Sin movimientos todavía', 'Acá vas a ver cada botella que agregues o descorches.']
+    };
+    var t = texts[kind];
+    return '<div class="empty">'+
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M9 2h6v5.2c0 1 .35 2 1 2.8.85 1.05 1.3 2.35 1.3 3.7V20a2 2 0 0 1-2 2H9.7a2 2 0 0 1-2-2v-6.3c0-1.35.45-2.65 1.3-3.7.65-.8 1-1.8 1-2.8V2z"/></svg>'+
+      '<h3>'+t[0]+'</h3><p>'+t[1]+'</p>'+
+      (kind==='cava-vacia' ? '<button class="btn btn-primary" id="empty-cta">Nuevo vino</button>' : '')+
+    '</div>';
+  }
+  function bindEmptyCTA(){
+    var b = document.getElementById('empty-cta');
+    if(b) b.addEventListener('click', openNewWineForm);
+  }
+
+  /* ---------------- Rendering: Historial tab ---------------- */
+  function renderHistorial(){
+    var el = document.getElementById('historial-content');
+    if(state.subtab === 'catalogo'){ renderCatalogo(el); } else { renderRegistro(el); }
+  }
+
+  function renderCatalogo(el){
+    var q = normalize(state.search);
+    var list = state.wines.slice();
+    if(q){
+      list = list.filter(function(w){
+        var hay = normalize([w.bodega,w.linea,w.region,typeInfo(w.color).label].concat((w.variedades||[]).map(function(v){return v.nombre;})).join(' '));
+        return hay.indexOf(q) !== -1;
+      });
+    }
+    if(state.wines.length===0){ el.innerHTML = emptyStateHTML('catalogo-vacio'); bindEmptyCTA(); return; }
+    if(list.length===0){ el.innerHTML = '<div class="empty"><h3>Sin resultados</h3><p>No encontramos vinos que coincidan.</p></div>'; return; }
+
+    list.sort(function(a,b){ return a.bodega.localeCompare(b.bodega); });
+    var html = '';
+    list.forEach(function(w){
+      var t = typeInfo(w.color);
+      var vt = varietyText(w);
+      html += '<div class="cat-row" data-open="'+w.id+'">'+
+        '<div class="card-info">'+
+          '<div class="card-bodega">'+escapeHtml(w.bodega)+'</div>'+
+          (w.linea ? '<div class="card-linea">'+escapeHtml(w.linea)+'</div>' : '')+
+          '<div class="card-meta">'+t.label+' · '+(w.anio || 'S/A')+(vt ? ' · '+vt : '')+'</div>'+
+        '</div>'+
+        '<div style="display:flex; flex-direction:column; align-items:flex-end; gap:8px;">'+
+          '<span class="stock-pill'+(w.stock>0?' has':'')+'">'+w.stock+' en stock</span>'+
+          '<button class="btn btn-add" style="padding:6px 10px; font-size:12px;" data-quickadd="'+w.id+'">Reponer +1</button>'+
+        '</div>'+
+      '</div>';
+    });
+    el.innerHTML = html;
+    el.querySelectorAll('[data-open]').forEach(function(row){
+      row.addEventListener('click', function(e){
+        if(e.target.closest('[data-quickadd]')) return;
+        openDetail(row.getAttribute('data-open'));
+      });
+    });
+    el.querySelectorAll('[data-quickadd]').forEach(function(b){
+      b.addEventListener('click', function(e){ e.stopPropagation(); addStock(b.getAttribute('data-quickadd'), 1); });
+    });
+  }
+
+  function renderRegistro(el){
+    if(state.events.length===0){ el.innerHTML = emptyStateHTML('registro-vacio'); return; }
+    var html = '<div class="card" style="padding:4px 14px;">';
+    state.events.forEach(function(ev, i){
+      var isUncork = ev.tipo === 'consumido';
+      var name = ev.snapshot.bodega + (ev.snapshot.linea ? ' — '+ev.snapshot.linea : '') + (ev.snapshot.anio ? ' ('+ev.snapshot.anio+')' : '');
+      html += '<div class="log-row">'+
+        '<div class="log-icon" style="color:'+(isUncork?'var(--danger)':'var(--gold)')+'">'+
+          (isUncork ?
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 18L18 6M6 6l12 12"/></svg>' :
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>') +
+        '</div>'+
+        '<div>'+
+          '<div class="log-text">'+(isUncork ? 'Descorchada' : 'Agregada') + (ev.cantidad>1 ? ' ×'+ev.cantidad : '') + ' — <b>'+escapeHtml(name)+'</b></div>'+
+          '<div class="log-date">'+fmtDate(ev.fecha)+'</div>'+
+        '</div>'+
+      '</div>';
+    });
+    html += '</div>';
+    el.innerHTML = html;
+  }
+
+  /* ---------------- Stats ---------------- */
+  function renderStats(){
+    var active = state.wines.filter(function(w){ return w.stock>0; });
+    var totalBotellas = active.reduce(function(s,w){ return s+w.stock; }, 0);
+    document.getElementById('stats').textContent = active.length + ' vino' + (active.length!==1?'s':'') + ' · ' + totalBotellas + ' botella' + (totalBotellas!==1?'s':'') + ' en stock';
+  }
+
+  /* ---------------- Main render ---------------- */
+  function render(){
+    renderStats();
+    if(state.tab === 'cava'){ renderCava(); } else { renderHistorial(); }
+  }
+
+  /* ---------------- Detail sheet ---------------- */
+  function openDetail(id){
+    var w = findWine(id);
+    if(!w) return;
+    var t = typeInfo(w.color);
+    var vs = (w.variedades||[]).filter(function(v){return v.nombre;});
+    var sheet = document.getElementById('sheet');
+    var html = '<div class="sheet-handle"></div>'+
+      '<h2>'+escapeHtml(w.bodega)+'</h2>'+
+      (w.linea ? '<div class="sub" style="font-style:italic; font-family:Fraunces,serif; font-size:15px; color:var(--text-dim); margin-bottom:2px;">'+escapeHtml(w.linea)+'</div>' : '')+
+      '<div class="sub">'+t.label+' · '+(w.anio||'S/A')+(w.region ? ' · '+escapeHtml(w.region) : '')+'</div>';
+
+    if(vs.length){
+      html += '<div style="margin-bottom:16px;">';
+      vs.forEach(function(v){
+        var pct = v.porcentaje ? Math.min(100, v.porcentaje) : (100/vs.length);
+        html += '<div class="detail-variety-row">'+
+          '<div class="detail-variety-label"><span>'+escapeHtml(v.nombre)+'</span>'+(v.porcentaje?'<span>'+v.porcentaje+'%</span>':'')+'</div>'+
+          '<div class="detail-varbar"><span style="width:'+pct+'%; background:'+t.color+'"></span></div>'+
+        '</div>';
+      });
+      html += '</div>';
+    }
+
+    html += '<div style="display:flex; align-items:center; justify-content:center; margin-bottom:16px;">'+bottlesHTML(w.stock, t.color)+'</div>';
+
+    if(w.notas){ html += '<div class="detail-notes">'+escapeHtml(w.notas)+'</div>'; }
+
+    html += '<div class="sheet-actions" style="margin-top:18px;">'+
+        '<button class="btn btn-uncork" style="flex:1" id="d-uncork" '+(w.stock<=0?'disabled':'')+'>Descorchar</button>'+
+        '<button class="btn btn-add" style="flex:1" id="d-add">Agregar</button>'+
+      '</div>'+
+      '<div class="sheet-actions" style="margin-top:10px;">'+
+        '<button class="btn btn-ghost" style="flex:1" id="d-edit">Editar</button>'+
+        '<button class="btn btn-danger" style="flex:1" id="d-delete">Eliminar</button>'+
+      '</div>';
+
+    sheet.innerHTML = html;
+    openSheet();
+
+    document.getElementById('d-uncork').addEventListener('click', function(){ uncork(w.id); closeSheet(); });
+    document.getElementById('d-add').addEventListener('click', function(){ openAddQuantity(w.id); });
+    document.getElementById('d-edit').addEventListener('click', function(){ openNewWineForm(w.id); });
+    document.getElementById('d-delete').addEventListener('click', function(){
+      if(confirm('¿Eliminar '+w.bodega+' de tu cava? Esto borra también su historial.')){
+        state.events = state.events.filter(function(e){ return e.wineId !== w.id; });
+        saveEvents();
+        deleteWine(w.id);
+        closeSheet();
+      }
+    });
+  }
+
+  function openAddQuantity(id){
+    var w = findWine(id);
+    var qty = 1;
+    var sheet = document.getElementById('sheet');
+    sheet.innerHTML = '<div class="sheet-handle"></div>'+
+      '<h2>Agregar botellas</h2>'+
+      '<div class="sub">'+escapeHtml(w.bodega)+(w.linea?' — '+escapeHtml(w.linea):'')+'</div>'+
+      '<div class="stepper">'+
+        '<button id="q-minus">−</button><span class="val" id="q-val">1</span><button id="q-plus">+</button>'+
+      '</div>'+
+      '<button class="btn btn-primary btn-block" id="q-confirm">Agregar 1 botella</button>';
+    openSheet();
+    function refresh(){
+      document.getElementById('q-val').textContent = qty;
+      document.getElementById('q-confirm').textContent = 'Agregar ' + qty + ' botella' + (qty>1?'s':'');
+    }
+    document.getElementById('q-minus').addEventListener('click', function(){ if(qty>1){ qty--; refresh(); } });
+    document.getElementById('q-plus').addEventListener('click', function(){ qty++; refresh(); });
+    document.getElementById('q-confirm').addEventListener('click', function(){ addStock(id, qty); closeSheet(); });
+  }
+
+  /* ---------------- New / Edit wine form ---------------- */
+  function openNewWineForm(editId){
+    var w = editId ? findWine(editId) : null;
+    var varieties = (w && w.variedades && w.variedades.length) ? w.variedades.slice() : [{nombre:'', porcentaje:''}];
+    var sheet = document.getElementById('sheet');
+
+    function fieldsHTML(){
+      var typeOptions = TYPES.map(function(t){
+        return '<option value="'+t.id+'"'+(w && w.color===t.id ? ' selected':'')+'>'+t.label+'</option>';
+      }).join('');
+      var varietyRows = varieties.map(function(v, i){
+        return '<div class="variety-row" data-vrow="'+i+'">'+
+          '<input type="text" placeholder="Variedad (ej. Malbec)" value="'+escapeHtml(v.nombre)+'" data-vname="'+i+'">'+
+          '<input type="number" placeholder="%" min="0" max="100" value="'+(v.porcentaje||'')+'" data-vpct="'+i+'">'+
+          '<button type="button" class="rm" data-vrm="'+i+'" '+(varieties.length<=1?'disabled style="opacity:.25"':'')+'>&times;</button>'+
+        '</div>';
+      }).join('');
+
+      return '<div class="sheet-handle"></div>'+
+        '<h2>'+(w?'Editar vino':'Nuevo vino')+'</h2>'+
+        '<div class="sub">'+(w?'Actualizá los datos de este vino.':'Cargá los datos una vez; después lo repetís desde el Catálogo.')+'</div>'+
+        '<div class="field"><label>Bodega *</label><input type="text" id="f-bodega" value="'+(w?escapeHtml(w.bodega):'')+'" placeholder="Ej. Catena Zapata"></div>'+
+        '<div class="field"><label>Línea / marca</label><input type="text" id="f-linea" value="'+(w?escapeHtml(w.linea||''):'')+'" placeholder="Ej. Nicolás Catena Zapata"></div>'+
+        '<div class="row2">'+
+          '<div class="field"><label>Año</label><input type="number" id="f-anio" value="'+(w&&w.anio?w.anio:'')+'" placeholder="S/A"></div>'+
+          '<div class="field"><label>Color *</label><select id="f-color">'+typeOptions+'</select></div>'+
+        '</div>'+
+        '<div class="field"><label>Variedades</label><div id="variety-list">'+varietyRows+'</div>'+
+          '<div class="variety-sum" id="variety-sum"></div>'+
+          '<button type="button" class="link-btn" id="add-variety">+ Agregar variedad</button>'+
+        '</div>'+
+        '<div class="field"><label>Región</label><input type="text" id="f-region" value="'+(w?escapeHtml(w.region||''):'')+'" placeholder="Ej. Valle de Uco, Mendoza"></div>'+
+        '<div class="field"><label>Notas</label><textarea id="f-notas" placeholder="Notas de cata, ocasión, maridaje…">'+(w?escapeHtml(w.notas||''):'')+'</textarea></div>'+
+        (!w ? '<div class="field"><label>Cantidad inicial *</label><input type="number" id="f-cantidad" min="0" value="1"></div>' : '')+
+        '<div class="sheet-actions">'+
+          '<button class="btn btn-ghost" style="flex:1" id="f-cancel">Cancelar</button>'+
+          '<button class="btn btn-primary" style="flex:2" id="f-save">'+(w?'Guardar cambios':'Agregar a la cava')+'</button>'+
+        '</div>';
+    }
+
+    function bindVarietyEvents(){
+      document.querySelectorAll('[data-vname]').forEach(function(inp){
+        inp.addEventListener('input', function(){ varieties[+inp.getAttribute('data-vname')].nombre = inp.value; updateSum(); });
+      });
+      document.querySelectorAll('[data-vpct]').forEach(function(inp){
+        inp.addEventListener('input', function(){ varieties[+inp.getAttribute('data-vpct')].porcentaje = inp.value ? Number(inp.value) : ''; updateSum(); });
+      });
+      document.querySelectorAll('[data-vrm]').forEach(function(btn){
+        btn.addEventListener('click', function(){
+          if(varieties.length<=1) return;
+          varieties.splice(+btn.getAttribute('data-vrm'), 1);
+          rebuild();
+        });
+      });
+      document.getElementById('add-variety').addEventListener('click', function(){
+        varieties.push({nombre:'', porcentaje:''});
+        rebuild();
+      });
+      updateSum();
+    }
+    function updateSum(){
+      var withPct = varieties.filter(function(v){ return v.porcentaje; });
+      var sumEl = document.getElementById('variety-sum');
+      if(varieties.length>1 && withPct.length){
+        var sum = withPct.reduce(function(s,v){ return s+Number(v.porcentaje); }, 0);
+        sumEl.textContent = 'Suma: ' + sum + '%';
+        sumEl.style.color = sum===100 ? 'var(--text-faint)' : 'var(--gold)';
+      } else { sumEl.textContent = ''; }
+    }
+
+    function rebuild(){
+      var bodega = document.getElementById('f-bodega').value;
+      var linea = document.getElementById('f-linea').value;
+      var anio = document.getElementById('f-anio').value;
+      var color = document.getElementById('f-color').value;
+      var region = document.getElementById('f-region').value;
+      var notas = document.getElementById('f-notas').value;
+      sheet.innerHTML = fieldsHTML();
+      document.getElementById('f-bodega').value = bodega;
+      document.getElementById('f-linea').value = linea;
+      document.getElementById('f-anio').value = anio;
+      document.getElementById('f-color').value = color;
+      document.getElementById('f-region').value = region;
+      document.getElementById('f-notas').value = notas;
+      bindVarietyEvents();
+      bindFormActions();
+    }
+
+    function bindFormActions(){
+      document.getElementById('f-cancel').addEventListener('click', closeSheet);
+      document.getElementById('f-save').addEventListener('click', async function(){
+        var bodega = document.getElementById('f-bodega').value.trim();
+        var color = document.getElementById('f-color').value;
+        if(!bodega){ document.getElementById('f-bodega').focus(); showToast('Ingresá una bodega'); return; }
+        var data = {
+          bodega: bodega,
+          linea: document.getElementById('f-linea').value.trim(),
+          anio: document.getElementById('f-anio').value ? Number(document.getElementById('f-anio').value) : null,
+          color: color,
+          variedades: varieties.filter(function(v){ return v.nombre.trim(); }).map(function(v){ return {nombre:v.nombre.trim(), porcentaje:v.porcentaje?Number(v.porcentaje):''}; }),
+          region: document.getElementById('f-region').value.trim(),
+          notas: document.getElementById('f-notas').value.trim()
+        };
+        if(w){
+          await updateWine(w.id, data);
+        } else {
+          var cantEl = document.getElementById('f-cantidad');
+          data.cantidadInicial = cantEl.value ? Math.max(0, Number(cantEl.value)) : 0;
+          await createWine(data);
+        }
+        closeSheet();
+      });
+    }
+
+    sheet.innerHTML = fieldsHTML();
+    openSheet();
+    bindVarietyEvents();
+    bindFormActions();
+  }
+
+  /* ---------------- Sheet open/close ---------------- */
+  function openSheet(){ document.getElementById('overlay').hidden = false; }
+  function closeSheet(){ document.getElementById('overlay').hidden = true; document.getElementById('sheet').innerHTML=''; }
+
+  /* ---------------- Event bindings ---------------- */
+  document.getElementById('overlay').addEventListener('click', function(e){
+    if(e.target.id === 'overlay') closeSheet();
+  });
+  document.getElementById('fab').addEventListener('click', function(){ openNewWineForm(); });
+  document.querySelectorAll('.tab').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      state.tab = btn.getAttribute('data-tab');
+      document.querySelectorAll('.tab').forEach(function(b){ b.classList.toggle('active', b===btn); });
+      document.getElementById('view-cava').hidden = state.tab !== 'cava';
+      document.getElementById('view-historial').hidden = state.tab !== 'historial';
+      render();
+    });
+  });
+  document.querySelectorAll('.subtab').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      state.subtab = btn.getAttribute('data-sub');
+      document.querySelectorAll('.subtab').forEach(function(b){ b.classList.toggle('active', b===btn); });
+      render();
+    });
+  });
+  document.getElementById('search').addEventListener('input', function(e){
+    state.search = e.target.value;
+    render();
+  });
+
+  /* ---------------- Init ---------------- */
+  async function init(){
+    await loadData();
+    render();
+  }
+  init();
+
+})();
+</script>
+</body>
+</html>
