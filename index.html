@@ -369,6 +369,13 @@ main{ flex:1; padding:0 20px 100px; overflow-anchor:none; }
 (function(){
   "use strict";
 
+  /* ---------------- Config Supabase ----------------
+     Reemplazá estos dos valores con los de TU proyecto Supabase
+     (Settings → API → Project URL / clave "anon" o "publishable").
+     Nunca uses acá la "service_role". */
+  var SUPABASE_URL = 'https://pjoyukpupwwilpiagtmt.supabase.co';
+  var SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBqb3l1a3B1cHd3aWxwaWFndG10Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkyNjE0OTUsImV4cCI6MjEwNDgzNzQ5NX0.08g8fEpjzdOzssqfMs73DKb41WqjTGI6F9AIDfY08SQ';
+
   /* ---------------- Constants ---------------- */
   var TYPES = [
     {id:'tinto', label:'Tinto', color:'#8c2f39'},
@@ -379,8 +386,10 @@ main{ flex:1; padding:0 20px 100px; overflow-anchor:none; }
   ];
   function typeInfo(id){ return TYPES.find(function(t){return t.id===id;}) || TYPES[0]; }
 
-  var WINES_KEY = 'cava:wines';
-  var EVENTS_KEY = 'cava:events';
+  var LOCAL_WINES_KEY = 'cava:wines';       // solo se usan para migrar datos viejos (localStorage)
+  var LOCAL_EVENTS_KEY = 'cava:events';
+  var MIGRATION_FLAG_KEY = 'cava:migrated-to-supabase';
+  var POLL_INTERVAL_MS = 25000;
 
   var BOTTLE_SVG = '<svg viewBox="0 0 12 32" fill="currentColor"><path d="M5 0h2v3.6c0 .75.3 1.45.85 2.05C8.55 6.35 9 7.35 9 8.55V29.5A2.5 2.5 0 0 1 6.5 32h-1A2.5 2.5 0 0 1 3 29.5V8.55c0-1.2.45-2.2 1.15-2.9C4.7 5.05 5 4.35 5 3.6V0z"/></svg>';
 
@@ -425,7 +434,7 @@ main{ flex:1; padding:0 20px 100px; overflow-anchor:none; }
     return html;
   }
   // Resizes + compresses a photo client-side before storing it (label photos
-  // don't need full camera resolution, and storage quota is limited).
+  // don't need full camera resolution, and storage/transfer is limited).
   function resizeImage(file, maxDim, quality){
     return new Promise(function(resolve, reject){
       var reader = new FileReader();
@@ -448,77 +457,165 @@ main{ flex:1; padding:0 20px 100px; overflow-anchor:none; }
     });
   }
 
-  /* ---------------- Storage ----------------
-     Uses window.storage when running inside a Claude artifact preview
-     (persists per-user, cross-session, cross-device via Claude).
-     Falls back to localStorage when opened as a standalone file/PWA
-     (e.g. hosted and added to the iPhone home screen), since
-     window.storage only exists inside Claude's own sandbox. */
-  var hasCloudStorage = (typeof window.storage !== 'undefined') && !!window.storage;
+  /* ---------------- Supabase (fetch directo a PostgREST, sin librerías) ---------------- */
+  async function api(path, opts){
+    opts = opts || {};
+    var headers = {
+      'apikey': SUPABASE_KEY,
+      'Authorization': 'Bearer ' + SUPABASE_KEY,
+      'Content-Type': 'application/json'
+    };
+    headers['Prefer'] = opts.prefer || 'return=minimal';
+    var res = await fetch(SUPABASE_URL + '/rest/v1/' + path, {
+      method: opts.method || 'GET',
+      headers: headers,
+      body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined
+    });
+    if(!res.ok){
+      var errText = '';
+      try{ errText = await res.text(); }catch(e){}
+      throw new Error('Supabase ' + res.status + ': ' + errText);
+    }
+    if(res.status === 204) return null;
+    var text = await res.text();
+    return text ? JSON.parse(text) : null;
+  }
+
+  function wineToRow(w){
+    return {
+      id: w.id, bodega: w.bodega, linea: w.linea || null, anio: w.anio || null,
+      color: w.color, variedades: w.variedades || [], region: w.region || null,
+      notas: w.notas || null, foto: w.foto || null, stock: w.stock,
+      created_at: w.createdAt
+    };
+  }
+  function rowToWine(row){
+    return {
+      id: row.id, bodega: row.bodega, linea: row.linea || '', anio: row.anio,
+      color: row.color, variedades: row.variedades || [], region: row.region || '',
+      notas: row.notas || '', foto: row.foto || null, stock: row.stock,
+      createdAt: row.created_at
+    };
+  }
+  function eventToRow(ev){
+    return { id: ev.id, wine_id: ev.wineId, tipo: ev.tipo, cantidad: ev.cantidad, fecha: ev.fecha, snapshot: ev.snapshot || {} };
+  }
+  function rowToEvent(row){
+    return { id: row.id, wineId: row.wine_id, tipo: row.tipo, cantidad: row.cantidad, fecha: row.fecha, snapshot: row.snapshot || {} };
+  }
 
   async function loadData(){
-    if(hasCloudStorage){
-      try{
-        var w = await window.storage.get(WINES_KEY);
-        state.wines = w ? JSON.parse(w.value) : [];
-      }catch(e){ state.wines = []; }
-      try{
-        var ev = await window.storage.get(EVENTS_KEY);
-        state.events = ev ? JSON.parse(ev.value) : [];
-      }catch(e){ state.events = []; }
-    } else {
-      try{ state.wines = JSON.parse(localStorage.getItem(WINES_KEY) || '[]'); }
-      catch(e){ state.wines = []; }
-      try{ state.events = JSON.parse(localStorage.getItem(EVENTS_KEY) || '[]'); }
-      catch(e){ state.events = []; }
+    var winesRows = await api('vinos?select=*&order=bodega.asc');
+    state.wines = (winesRows||[]).map(rowToWine);
+    var eventRows = await api('eventos?select=*&order=fecha.desc');
+    state.events = (eventRows||[]).map(rowToEvent);
+  }
+
+  function isSheetOpen(){
+    return !document.getElementById('overlay').hidden;
+  }
+
+  async function refreshFromServer(){
+    if(isSheetOpen()) return;
+    try{
+      await loadData();
+      render();
+    }catch(e){ /* se reintenta en el próximo ciclo de polling */ }
+  }
+
+  var pollTimer = null;
+  function startPolling(){
+    if(pollTimer) clearInterval(pollTimer);
+    pollTimer = setInterval(function(){
+      if(document.visibilityState === 'visible'){ refreshFromServer(); }
+    }, POLL_INTERVAL_MS);
+    document.addEventListener('visibilitychange', function(){
+      if(document.visibilityState === 'visible'){ refreshFromServer(); }
+    });
+  }
+
+  /* ---------------- Migración de datos locales (una sola vez) ---------------- */
+  async function maybeOfferMigration(){
+    if(localStorage.getItem(MIGRATION_FLAG_KEY)) return;
+    var localWines;
+    try{ localWines = JSON.parse(localStorage.getItem(LOCAL_WINES_KEY) || '[]'); }
+    catch(e){ localWines = []; }
+    if(!localWines.length){ localStorage.setItem(MIGRATION_FLAG_KEY, '1'); return; }
+    if(state.wines.length > 0){
+      // Ya hay datos en la nube (este teléfono ya migró o el otro ya cargó algo): no ofrecer, para no duplicar.
+      localStorage.setItem(MIGRATION_FLAG_KEY, '1');
+      return;
     }
+    showToast('Tenías ' + localWines.length + ' vino(s) guardados en este teléfono. ¿Migrarlos a la nube?', 'Migrar', runMigration, 20000);
   }
-  async function saveWines(){
+
+  async function runMigration(){
+    hideToast();
+    var localWines, localEvents;
+    try{ localWines = JSON.parse(localStorage.getItem(LOCAL_WINES_KEY) || '[]'); }catch(e){ localWines = []; }
+    try{ localEvents = JSON.parse(localStorage.getItem(LOCAL_EVENTS_KEY) || '[]'); }catch(e){ localEvents = []; }
     try{
-      if(hasCloudStorage){ await window.storage.set(WINES_KEY, JSON.stringify(state.wines), false); }
-      else{ localStorage.setItem(WINES_KEY, JSON.stringify(state.wines)); }
-    }catch(e){ showToast('No se pudo guardar. Reintentá.'); }
-  }
-  async function saveEvents(){
-    try{
-      if(hasCloudStorage){ await window.storage.set(EVENTS_KEY, JSON.stringify(state.events), false); }
-      else{ localStorage.setItem(EVENTS_KEY, JSON.stringify(state.events)); }
-    }catch(e){ showToast('No se pudo guardar el registro.'); }
+      for(var i=0;i<localWines.length;i++){
+        await api('vinos', {method:'POST', body: wineToRow(localWines[i])});
+      }
+      for(var j=0;j<localEvents.length;j++){
+        await api('eventos', {method:'POST', body: eventToRow(localEvents[j])});
+      }
+      localStorage.setItem(MIGRATION_FLAG_KEY, '1');
+      showToast('Migración lista. Ya está todo en la nube.');
+      await refreshFromServer();
+    }catch(e){
+      showToast('Falló la migración. Probá de nuevo con buena señal.');
+    }
   }
 
   /* ---------------- Data ops ---------------- */
   function findWine(id){ return state.wines.find(function(w){ return w.id===id; }); }
 
   function logEvent(wine, tipo, cantidad){
-    state.events.unshift({
+    var ev = {
       id: uid(),
       wineId: wine.id,
       tipo: tipo,
       cantidad: cantidad,
       fecha: new Date().toISOString(),
       snapshot: {bodega:wine.bodega, linea:wine.linea, anio:wine.anio}
-    });
+    };
+    state.events.unshift(ev);
+    return ev;
   }
 
   async function uncork(id){
     var w = findWine(id);
     if(!w || w.stock<=0) return;
     w.stock -= 1;
-    logEvent(w, 'consumido', 1);
-    await saveWines(); await saveEvents();
-    state.lastAction = {type:'undo-uncork', wineId:id, eventId: state.events[0].id};
+    var ev = logEvent(w, 'consumido', 1);
+    state.lastAction = {type:'undo-uncork', wineId:id, eventId: ev.id};
     render();
     showToast('Descorchaste ' + w.bodega + (w.linea ? ' — '+w.linea : ''), 'Deshacer', undoLastAction);
+    try{
+      await api('vinos?id=eq.'+encodeURIComponent(id), {method:'PATCH', body:{stock:w.stock}});
+      await api('eventos', {method:'POST', body: eventToRow(ev)});
+    }catch(e){
+      showToast('No se pudo guardar el descorche. Reintentando…');
+      await refreshFromServer();
+    }
   }
 
   async function addStock(id, cantidad){
     var w = findWine(id);
     if(!w) return;
     w.stock += cantidad;
-    logEvent(w, 'agregado', cantidad);
-    await saveWines(); await saveEvents();
+    var ev = logEvent(w, 'agregado', cantidad);
     render();
     showToast('Agregaste ' + cantidad + ' botella' + (cantidad>1?'s':'') + ' de ' + w.bodega);
+    try{
+      await api('vinos?id=eq.'+encodeURIComponent(id), {method:'PATCH', body:{stock:w.stock}});
+      await api('eventos', {method:'POST', body: eventToRow(ev)});
+    }catch(e){
+      showToast('No se pudo guardar. Reintentando…');
+      await refreshFromServer();
+    }
   }
 
   async function undoLastAction(){
@@ -528,9 +625,15 @@ main{ flex:1; padding:0 20px 100px; overflow-anchor:none; }
     if(w){ w.stock += 1; }
     state.events = state.events.filter(function(e){ return e.id !== a.eventId; });
     state.lastAction = null;
-    await saveWines(); await saveEvents();
     hideToast();
     render();
+    try{
+      if(w){ await api('vinos?id=eq.'+encodeURIComponent(a.wineId), {method:'PATCH', body:{stock:w.stock}}); }
+      await api('eventos?id=eq.'+encodeURIComponent(a.eventId), {method:'DELETE'});
+    }catch(e){
+      showToast('No se pudo deshacer en el servidor.');
+      await refreshFromServer();
+    }
   }
 
   async function createWine(data){
@@ -542,10 +645,17 @@ main{ flex:1; padding:0 20px 100px; overflow-anchor:none; }
       stock: data.cantidadInicial, createdAt: new Date().toISOString()
     };
     state.wines.push(w);
-    if(data.cantidadInicial > 0){ logEvent(w, 'agregado', data.cantidadInicial); await saveEvents(); }
-    await saveWines();
+    var ev = null;
+    if(data.cantidadInicial > 0){ ev = logEvent(w, 'agregado', data.cantidadInicial); }
     render();
     showToast('Agregaste ' + w.bodega + ' a tu cava');
+    try{
+      await api('vinos', {method:'POST', body: wineToRow(w)});
+      if(ev){ await api('eventos', {method:'POST', body: eventToRow(ev)}); }
+    }catch(e){
+      showToast('No se pudo guardar en la nube. Reintentando…');
+      await refreshFromServer();
+    }
   }
 
   async function updateWine(id, data){
@@ -554,27 +664,41 @@ main{ flex:1; padding:0 20px 100px; overflow-anchor:none; }
     w.bodega = data.bodega; w.linea = data.linea; w.anio = data.anio; w.color = data.color;
     w.variedades = data.variedades; w.region = data.region; w.notas = data.notas;
     w.foto = data.foto || null;
-    await saveWines();
     render();
     showToast('Vino actualizado');
+    try{
+      await api('vinos?id=eq.'+encodeURIComponent(id), {method:'PATCH', body:{
+        bodega: w.bodega, linea: w.linea||null, anio: w.anio, color: w.color,
+        variedades: w.variedades||[], region: w.region||null, notas: w.notas||null, foto: w.foto||null
+      }});
+    }catch(e){
+      showToast('No se pudo guardar el cambio. Reintentando…');
+      await refreshFromServer();
+    }
   }
 
   async function deleteWine(id){
     state.wines = state.wines.filter(function(w){ return w.id !== id; });
-    await saveWines();
     render();
     showToast('Vino eliminado');
+    try{
+      // Borra el vino; los eventos asociados se borran en cascada en el servidor (ON DELETE CASCADE).
+      await api('vinos?id=eq.'+encodeURIComponent(id), {method:'DELETE'});
+    }catch(e){
+      showToast('No se pudo eliminar en la nube. Reintentando…');
+      await refreshFromServer();
+    }
   }
 
   /* ---------------- Toast ---------------- */
   var toastTimer = null;
-  function showToast(msg, actionLabel, actionFn){
+  function showToast(msg, actionLabel, actionFn, duration){
     var el = document.getElementById('toast');
     el.innerHTML = '<span>'+escapeHtml(msg)+'</span>' + (actionLabel ? '<button id="toast-action">'+escapeHtml(actionLabel)+'</button>' : '');
     el.hidden = false;
     if(actionLabel && actionFn){ document.getElementById('toast-action').onclick = actionFn; }
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(hideToast, 5500);
+    toastTimer = setTimeout(hideToast, duration || 5500);
   }
   function hideToast(){ document.getElementById('toast').hidden = true; }
 
@@ -798,7 +922,6 @@ main{ flex:1; padding:0 20px 100px; overflow-anchor:none; }
     document.getElementById('d-delete').addEventListener('click', function(){
       if(confirm('¿Eliminar '+w.bodega+' de tu cava? Esto borra también su historial.')){
         state.events = state.events.filter(function(e){ return e.wineId !== w.id; });
-        saveEvents();
         deleteWine(w.id);
         closeSheet();
       }
@@ -1023,8 +1146,14 @@ main{ flex:1; padding:0 20px 100px; overflow-anchor:none; }
 
   /* ---------------- Init ---------------- */
   async function init(){
-    await loadData();
+    try{
+      await loadData();
+    }catch(e){
+      showToast('No se pudo conectar con la nube. Revisá tu conexión o la configuración de Supabase.', null, null, 8000);
+    }
     render();
+    await maybeOfferMigration();
+    startPolling();
   }
   init();
 
