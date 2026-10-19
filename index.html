@@ -368,6 +368,13 @@ button.section-label:first-child{ margin-top:2px; }
   background:rgba(10,8,12,0.65); backdrop-filter:blur(4px); border:none; color:#fff;
   font-size:12px; font-weight:600; padding:6px 12px; border-radius:999px;
 }
+.country-input{ position:relative; }
+.country-flag{ position:absolute; left:12px; top:50%; transform:translateY(-50%); font-size:18px; line-height:1; pointer-events:none; }
+.field .country-input input.has-flag{ padding-left:40px; }
+.country-sugg{ margin-top:8px; }
+.country-sugg:empty{ display:none; }
+.field-hint{ font-size:12px; color:var(--text-faint); margin-top:6px; }
+.field-hint:empty{ display:none; }
 .photo-pick-row{ display:flex; gap:10px; }
 .photo-pick{
   display:flex; align-items:center; gap:6px; background:var(--surface-2); border:1px solid var(--border);
@@ -508,14 +515,50 @@ button.section-label:first-child{ margin-top:2px; }
   var LOCAL_EVENTS_KEY = 'cava:events';
   var MIGRATION_FLAG_KEY = 'cava:migrated-to-supabase';
   var POLL_INTERVAL_MS = 25000;
-  var APP_VERSION = '2.7'; // ver historial de versiones en CAVA-documentacion.md
+  var APP_VERSION = '2.8'; // ver historial de versiones en CAVA-documentacion.md
 
   var BOTTLE_SVG = '<svg viewBox="0 0 12 32" fill="currentColor"><path d="M5 0h2v3.6c0 .75.3 1.45.85 2.05C8.55 6.35 9 7.35 9 8.55V29.5A2.5 2.5 0 0 1 6.5 32h-1A2.5 2.5 0 0 1 3 29.5V8.55c0-1.2.45-2.2 1.15-2.9C4.7 5.05 5 4.35 5 3.6V0z"/></svg>';
   var PIN_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 21s-7-6.5-7-11a7 7 0 0 1 14 0c0 4.5-7 11-7 11z"/><circle cx="12" cy="10" r="2.3"/></svg>';
   var EDIT_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>';
 
-  // Lista completa de países (orden alfabético). Se guarda el nombre tal cual en vinos.pais.
-  var COUNTRIES = ["Afganistán", "Albania", "Alemania", "Andorra", "Angola", "Antigua y Barbuda", "Arabia Saudita", "Argelia", "Argentina", "Armenia", "Australia", "Austria", "Azerbaiyán", "Bahamas", "Bangladés", "Barbados", "Baréin", "Bélgica", "Belice", "Benín", "Bielorrusia", "Birmania", "Bolivia", "Bosnia y Herzegovina", "Botsuana", "Brasil", "Brunéi", "Bulgaria", "Burkina Faso", "Burundi", "Bután", "Cabo Verde", "Camboya", "Camerún", "Canadá", "Catar", "Chad", "Chile", "China", "Chipre", "Colombia", "Comoras", "Corea del Norte", "Corea del Sur", "Costa de Marfil", "Costa Rica", "Croacia", "Cuba", "Dinamarca", "Dominica", "Ecuador", "Egipto", "El Salvador", "Emiratos Árabes Unidos", "Eritrea", "Eslovaquia", "Eslovenia", "España", "Estados Unidos", "Estonia", "Esuatini", "Etiopía", "Filipinas", "Finlandia", "Fiyi", "Francia", "Gabón", "Gambia", "Georgia", "Ghana", "Granada", "Grecia", "Guatemala", "Guinea", "Guinea Ecuatorial", "Guinea-Bisáu", "Guyana", "Haití", "Honduras", "Hungría", "India", "Indonesia", "Irak", "Irán", "Irlanda", "Islandia", "Islas Marshall", "Islas Salomón", "Israel", "Italia", "Jamaica", "Japón", "Jordania", "Kazajistán", "Kenia", "Kirguistán", "Kiribati", "Kuwait", "Laos", "Lesoto", "Letonia", "Líbano", "Liberia", "Libia", "Liechtenstein", "Lituania", "Luxemburgo", "Macedonia del Norte", "Madagascar", "Malasia", "Malaui", "Maldivas", "Malí", "Malta", "Marruecos", "Mauricio", "Mauritania", "México", "Micronesia", "Moldavia", "Mónaco", "Mongolia", "Montenegro", "Mozambique", "Namibia", "Nauru", "Nepal", "Nicaragua", "Níger", "Nigeria", "Noruega", "Nueva Zelanda", "Omán", "Países Bajos", "Pakistán", "Palaos", "Palestina", "Panamá", "Papúa Nueva Guinea", "Paraguay", "Perú", "Polonia", "Portugal", "Reino Unido", "República Centroafricana", "República Checa", "República del Congo", "República Democrática del Congo", "República Dominicana", "Ruanda", "Rumania", "Rusia", "Samoa", "San Cristóbal y Nieves", "San Marino", "San Vicente y las Granadinas", "Santa Lucía", "Santo Tomé y Príncipe", "Senegal", "Serbia", "Seychelles", "Sierra Leona", "Singapur", "Siria", "Somalia", "Sri Lanka", "Sudáfrica", "Sudán", "Sudán del Sur", "Suecia", "Suiza", "Surinam", "Tailandia", "Taiwán", "Tanzania", "Tayikistán", "Timor Oriental", "Togo", "Tonga", "Trinidad y Tobago", "Túnez", "Turkmenistán", "Turquía", "Tuvalu", "Ucrania", "Uganda", "Uruguay", "Uzbekistán", "Vanuatu", "Vaticano", "Venezuela", "Vietnam", "Yemen", "Yibuti", "Zambia", "Zimbabue"];
+  // Países: [código ISO, nombre en español, alias normalizados separados por |].
+  // El usuario escribe el país; si coincide con un nombre o alias se guarda el nombre
+  // canónico y se muestra con bandera. Si no, se guarda tal cual lo escribió.
+  var COUNTRY_DATA = [["AF","Afganistán","afghanistan"],["AL","Albania",""],["DE","Alemania","germany"],["AD","Andorra",""],["AO","Angola",""],["AG","Antigua y Barbuda","antigua barbuda"],["SA","Arabia Saudita","arabia|arabia saudi|saudi arabia"],["DZ","Argelia","algeria"],["AR","Argentina","arg"],["AM","Armenia",""],["AU","Australia",""],["AT","Austria",""],["AZ","Azerbaiyán","azerbaijan"],["BS","Bahamas",""],["BD","Bangladés","bangladesh"],["BB","Barbados",""],["BH","Baréin","bahrain"],["BE","Bélgica","belgium"],["BZ","Belice","belize"],["BJ","Benín",""],["BY","Bielorrusia","belarus"],["MM","Birmania","myanmar|myanmar birmania|myanmar burma"],["BO","Bolivia",""],["BA","Bosnia y Herzegovina","bosnia herzegovina"],["BW","Botsuana","botswana"],["BR","Brasil","brazil"],["BN","Brunéi",""],["BG","Bulgaria",""],["BF","Burkina Faso",""],["BI","Burundi",""],["BT","Bután","bhutan"],["CV","Cabo Verde","cape verde"],["KH","Camboya","cambodia"],["CM","Camerún","cameroon"],["CA","Canadá",""],["QA","Catar","qatar"],["TD","Chad",""],["CL","Chile",""],["CN","China",""],["CY","Chipre","cyprus"],["CO","Colombia",""],["KM","Comoras","comoros"],["KP","Corea del Norte","north korea"],["KR","Corea del Sur","corea|south korea"],["CI","Costa de Marfil","cote d ivoire|ivory coast"],["CR","Costa Rica",""],["HR","Croacia","croatia"],["CU","Cuba",""],["DK","Dinamarca","denmark"],["DM","Dominica",""],["EC","Ecuador",""],["EG","Egipto","egypt"],["SV","El Salvador",""],["AE","Emiratos Árabes Unidos","emiratos|uae|united arab emirates"],["ER","Eritrea",""],["SK","Eslovaquia","slovakia"],["SI","Eslovenia","slovenia"],["ES","España","spain"],["US","Estados Unidos","ee uu|eeuu|estados unidos de america|norteamerica|u s a|united states|usa"],["EE","Estonia",""],["SZ","Esuatini","eswatini|suazilandia|swaziland"],["ET","Etiopía","ethiopia"],["PH","Filipinas","philippines"],["FI","Finlandia","finland"],["FJ","Fiyi","fiji"],["FR","Francia","france"],["GA","Gabón",""],["GM","Gambia",""],["GE","Georgia",""],["GH","Ghana",""],["GD","Granada","grenada"],["GR","Grecia","greece"],["GT","Guatemala",""],["GN","Guinea",""],["GQ","Guinea Ecuatorial","equatorial guinea"],["GW","Guinea-Bisáu","guinea bissau"],["GY","Guyana",""],["HT","Haití",""],["HN","Honduras",""],["HU","Hungría","hungary"],["IN","India",""],["ID","Indonesia",""],["IQ","Irak","iraq"],["IR","Irán",""],["IE","Irlanda","ireland"],["IS","Islandia","iceland"],["MH","Islas Marshall","marshall islands"],["SB","Islas Salomón","solomon islands"],["IL","Israel",""],["IT","Italia","italy"],["JM","Jamaica",""],["JP","Japón","japan"],["JO","Jordania","jordan"],["KZ","Kazajistán","kazakhstan"],["KE","Kenia","kenya"],["KG","Kirguistán","kyrgyzstan"],["KI","Kiribati",""],["KW","Kuwait",""],["LA","Laos",""],["LS","Lesoto","lesotho"],["LV","Letonia","latvia"],["LB","Líbano","lebanon"],["LR","Liberia",""],["LY","Libia","libya"],["LI","Liechtenstein",""],["LT","Lituania","lithuania"],["LU","Luxemburgo","luxembourg"],["MK","Macedonia del Norte","macedonia|north macedonia"],["MG","Madagascar",""],["MY","Malasia","malaysia"],["MW","Malaui","malawi"],["MV","Maldivas","maldives"],["ML","Malí",""],["MT","Malta",""],["MA","Marruecos","morocco"],["MU","Mauricio","mauritius"],["MR","Mauritania",""],["MX","México",""],["FM","Micronesia",""],["MD","Moldavia","moldova"],["MC","Mónaco",""],["MN","Mongolia",""],["ME","Montenegro",""],["MZ","Mozambique",""],["NA","Namibia",""],["NR","Nauru",""],["NP","Nepal",""],["NI","Nicaragua",""],["NE","Níger",""],["NG","Nigeria",""],["NO","Noruega","norway"],["NZ","Nueva Zelanda","new zealand|nz"],["OM","Omán",""],["NL","Países Bajos","holanda|holland|netherlands"],["PK","Pakistán",""],["PW","Palaos","palau"],["PS","Palestina","palestinian territories|territorios palestinos"],["PA","Panamá",""],["PG","Papúa Nueva Guinea","papua new guinea"],["PY","Paraguay",""],["PE","Perú",""],["PL","Polonia","poland"],["PT","Portugal",""],["GB","Reino Unido","england|escocia|gales|gran bretana|great britain|inglaterra|scotland|uk|united kingdom|wales"],["CF","República Centroafricana","central african republic"],["CZ","República Checa","chequia|czechia"],["CG","República del Congo","congo|congo brazzaville"],["CD","República Democrática del Congo","congo kinshasa|rd congo"],["DO","República Dominicana","dominican republic"],["RW","Ruanda","rwanda"],["RO","Rumania","romania"],["RU","Rusia","russia"],["WS","Samoa",""],["KN","San Cristóbal y Nieves","st kitts nevis"],["SM","San Marino",""],["VC","San Vicente y las Granadinas","st vincent grenadines"],["LC","Santa Lucía","st lucia"],["ST","Santo Tomé y Príncipe","sao tome principe"],["SN","Senegal",""],["RS","Serbia",""],["SC","Seychelles",""],["SL","Sierra Leona","sierra leone"],["SG","Singapur","singapore"],["SY","Siria","syria"],["SO","Somalia",""],["LK","Sri Lanka",""],["ZA","Sudáfrica","south africa"],["SD","Sudán",""],["SS","Sudán del Sur","south sudan"],["SE","Suecia","sweden"],["CH","Suiza","switzerland"],["SR","Surinam","suriname"],["TH","Tailandia","thailand"],["TW","Taiwán",""],["TZ","Tanzania",""],["TJ","Tayikistán","tajikistan"],["TL","Timor Oriental","east timor|timor leste"],["TG","Togo",""],["TO","Tonga",""],["TT","Trinidad y Tobago","trinidad tobago"],["TN","Túnez","tunisia"],["TM","Turkmenistán",""],["TR","Turquía","turkiye"],["TV","Tuvalu",""],["UA","Ucrania","ukraine"],["UG","Uganda",""],["UY","Uruguay",""],["UZ","Uzbekistán",""],["VU","Vanuatu",""],["VA","Vaticano","ciudad del vaticano|santa sede|vatican city"],["VE","Venezuela",""],["VN","Vietnam",""],["YE","Yemen",""],["DJ","Yibuti","djibouti"],["ZM","Zambia",""],["ZW","Zimbabue","zimbabwe"]];
+  var COUNTRY_INDEX = {};
+  COUNTRY_DATA.forEach(function(c){
+    COUNTRY_INDEX[normCountry(c[1])] = c;
+    c[2].split('|').forEach(function(a){ if(a) COUNTRY_INDEX[a] = c; });
+  });
+  function normCountry(t){
+    return (t||'').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+      .replace(/[^a-z0-9 ]/g,' ').replace(/\s+/g,' ').trim();
+  }
+  function flagEmoji(code){
+    return String.fromCodePoint.apply(null, code.toUpperCase().split('').map(function(ch){ return 0x1F1E6 + ch.charCodeAt(0) - 65; }));
+  }
+  function resolveCountry(t){ return COUNTRY_INDEX[normCountry(t)] || null; }
+  // Nombre a guardar / agrupar: el canónico si se reconoce, si no el texto tal cual.
+  function countryCanonical(t){
+    var c = resolveCountry(t);
+    return c ? c[1] : (t||'').trim();
+  }
+  // HTML para mostrar: bandera + nombre (o el texto sin bandera si no se reconoce).
+  function countryDisplay(t){
+    var c = resolveCountry(t);
+    return c ? flagEmoji(c[0]) + ' ' + escapeHtml(c[1]) : escapeHtml((t||'').trim());
+  }
+  function suggestCountries(t, max){
+    var q = normCountry(t);
+    if(!q) return [];
+    var starts = [], contains = [];
+    COUNTRY_DATA.forEach(function(c){
+      var keys = [normCountry(c[1])].concat(c[2] ? c[2].split('|') : []);
+      if(keys.some(function(k){ return k.indexOf(q) === 0; })) starts.push(c);
+      else if(keys.some(function(k){ return k.indexOf(q) > 0; })) contains.push(c);
+    });
+    return starts.concat(contains).slice(0, max || 5);
+  }
   var SIN_ESP = 'Sin especificar';
   var FUNNEL_EMPTY = {color:'', tipo:'', variedad:'', pais:'', region:'', anio:''};
 
@@ -554,7 +597,10 @@ button.section-label:first-child{ margin-top:2px; }
   }
   // "Valle de Uco · Argentina" (ya escapado)
   function originText(w){
-    return [w.region, w.pais].filter(function(x){ return x && x.trim(); }).map(escapeHtml).join(' · ');
+    var parts = [];
+    if(w.region && w.region.trim()) parts.push(escapeHtml(w.region.trim()));
+    if(w.pais && w.pais.trim()) parts.push(countryDisplay(w.pais));
+    return parts.join(' · ');
   }
   function bottlesHTML(count, colorHex){
     var cap = 8;
@@ -870,13 +916,13 @@ button.section-label:first-child{ margin-top:2px; }
   }
   function matchesSearch(w, q){
     if(!q) return true;
-    var hay = normalize([w.bodega, w.linea, w.region, w.pais || SIN_ESP, w.ubicacion, typeInfo(w.color).label]
+    var hay = normalize([w.bodega, w.linea, w.region, w.pais, countryCanonical(w.pais) || SIN_ESP, w.ubicacion, typeInfo(w.color).label]
       .concat(namedVarieties(w).map(function(v){ return v.nombre; })).join(' '));
     return hay.indexOf(q) !== -1;
   }
   // Valor de un campo para filtrar: '' (vacío) se trata como "Sin especificar".
   function filterKey(w, campo){
-    if(campo === 'pais') return (w.pais||'').trim() || SIN_ESP;
+    if(campo === 'pais') return countryCanonical(w.pais) || SIN_ESP;
     if(campo === 'region') return (w.region||'').trim() || SIN_ESP;
     if(campo === 'anio') return w.anio ? String(w.anio) : 'S/A';
     return '';
@@ -924,7 +970,7 @@ button.section-label:first-child{ margin-top:2px; }
     if(f.color) labels.push(typeInfo(f.color).label);
     if(f.tipo) labels.push(f.tipo === 'varietal' ? 'Varietal' : f.tipo === 'blend' ? 'Blend' : f.tipo === 'espumante' ? 'Espumante' : 'Sin variedad');
     if(f.variedad) labels.push(f.variedad);
-    if(f.pais) labels.push(f.pais === SIN_ESP ? 'País: sin especificar' : f.pais);
+    if(f.pais) labels.push(f.pais === SIN_ESP ? 'País: sin especificar' : (resolveCountry(f.pais) ? flagEmoji(resolveCountry(f.pais)[0]) + ' ' : '') + f.pais);
     if(f.region) labels.push(f.region === SIN_ESP ? 'Región: sin especificar' : f.region);
     if(f.anio) labels.push(f.anio);
     bar.innerHTML = labels.map(function(l){ return '<span class="af-chip">'+escapeHtml(l)+'</span>'; }).join('') +
@@ -967,7 +1013,10 @@ button.section-label:first-child{ margin-top:2px; }
       var opts = distinctValues(campo);
       if(f[campo] && opts.indexOf(f[campo]) === -1) opts.unshift(f[campo]);
       return '<select id="'+id+'"><option value="">'+todosLabel+'</option>'+
-        opts.map(function(v){ return '<option value="'+escapeHtml(v)+'"'+(f[campo]===v?' selected':'')+'>'+escapeHtml(v)+'</option>'; }).join('')+
+        opts.map(function(v){
+          var txt = (campo === 'pais' && resolveCountry(v)) ? flagEmoji(resolveCountry(v)[0]) + ' ' + v : v;
+          return '<option value="'+escapeHtml(v)+'"'+(f[campo]===v?' selected':'')+'>'+escapeHtml(txt)+'</option>';
+        }).join('')+
       '</select>';
     }
     function html(){
@@ -1051,6 +1100,7 @@ button.section-label:first-child{ margin-top:2px; }
       else {
         var v = filterKey(w, by);
         put(normalize(v), v, null, w);
+        if(by === 'pais' && v !== SIN_ESP) groups[normalize(v)].html = countryDisplay(v);
       }
     });
     var res = order.map(function(k){ return groups[k]; });
@@ -1087,7 +1137,7 @@ button.section-label:first-child{ margin-top:2px; }
       return '<button type="button" class="section-label'+(collapsed?' collapsed':'')+'" data-group="'+escapeHtml(g.key)+'"'+(locked?' data-locked="1"':'')+' aria-expanded="'+(!collapsed)+'">'+
           CHEV_SVG+
           (g.dot ? '<span class="dot" style="background:'+g.dot+'"></span>' : '')+
-          '<span class="sec-name">'+escapeHtml(g.label)+'</span>'+
+          '<span class="sec-name">'+(g.html || escapeHtml(g.label))+'</span>'+
           '<span class="sec-count">'+count+'</span>'+
         '</button>'+
         '<div class="section-body"'+(collapsed?' hidden':'')+'>'+
@@ -1441,17 +1491,6 @@ button.section-label:first-child{ margin-top:2px; }
   }
 
   /* ---------------- New / Edit wine form ---------------- */
-  function countryOptions(selected){
-    var opts = '<option value="">'+SIN_ESP+'</option>';
-    // Si el valor guardado no está en la lista (dato viejo o escrito a mano), se conserva igual.
-    if(selected && COUNTRIES.indexOf(selected) === -1){
-      opts += '<option value="'+escapeHtml(selected)+'" selected>'+escapeHtml(selected)+'</option>';
-    }
-    return opts + COUNTRIES.map(function(c){
-      return '<option value="'+escapeHtml(c)+'"'+(c===selected?' selected':'')+'>'+escapeHtml(c)+'</option>';
-    }).join('');
-  }
-
   function openNewWineForm(editId){
     var w = editId ? findWine(editId) : null;
     var varieties = (w && w.variedades && w.variedades.length) ? w.variedades.slice() : [{nombre:'', porcentaje:''}];
@@ -1507,7 +1546,12 @@ button.section-label:first-child{ margin-top:2px; }
           '<div class="variety-sum" id="variety-sum"></div>'+
           '<button type="button" class="link-btn" id="add-variety">+ Agregar variedad</button>'+
         '</div>'+
-        '<div class="field"><label>País</label><select id="f-pais">'+countryOptions(w ? w.pais : '')+'</select></div>'+
+        '<div class="field"><label>País</label>'+
+          '<div class="country-input"><span class="country-flag" id="f-pais-flag"></span>'+
+          '<input type="text" id="f-pais" autocomplete="off" autocapitalize="words" value="'+(w?escapeHtml(w.pais||''):'')+'" placeholder="Ej. Argentina"></div>'+
+          '<div class="chips country-sugg" id="f-pais-sugg"></div>'+
+          '<div class="field-hint" id="f-pais-hint"></div>'+
+        '</div>'+
         '<div class="field"><label>Región</label><input type="text" id="f-region" value="'+(w?escapeHtml(w.region||''):'')+'" placeholder="Ej. Valle de Uco, Mendoza"></div>'+
         '<div class="field"><label>Ubicación</label><input type="text" id="f-ubicacion" value="'+(w?escapeHtml(w.ubicacion||''):'')+'" placeholder="Ej. Caja 3"></div>'+
         '<div class="field"><label>Notas</label><textarea id="f-notas" placeholder="Notas de cata, ocasión, maridaje…">'+(w?escapeHtml(w.notas||''):'')+'</textarea></div>'+
@@ -1539,6 +1583,35 @@ button.section-label:first-child{ margin-top:2px; }
           }catch(err){ showToast('No se pudo procesar la foto'); }
         });
       });
+    }
+
+    function bindCountryField(){
+      var input = document.getElementById('f-pais');
+      var flagEl = document.getElementById('f-pais-flag');
+      var sugg = document.getElementById('f-pais-sugg');
+      var hint = document.getElementById('f-pais-hint');
+      function refresh(showSugg){
+        var c = resolveCountry(input.value);
+        flagEl.textContent = c ? flagEmoji(c[0]) : '';
+        input.classList.toggle('has-flag', !!c);
+        hint.textContent = (!c && input.value.trim()) ? 'No lo reconozco como país: se guarda tal cual.' : '';
+        var list = (showSugg && !c) ? suggestCountries(input.value, 5) : [];
+        sugg.innerHTML = list.map(function(x){
+          return '<button type="button" class="chip" data-country="'+escapeHtml(x[1])+'">'+flagEmoji(x[0])+' '+escapeHtml(x[1])+'</button>';
+        }).join('');
+        sugg.querySelectorAll('[data-country]').forEach(function(b){
+          // evita que el toque cierre el teclado (blur) antes de registrar el click
+          b.addEventListener('pointerdown', function(e){ e.preventDefault(); });
+          b.addEventListener('click', function(){ input.value = b.getAttribute('data-country'); refresh(false); });
+        });
+      }
+      input.addEventListener('input', function(){ refresh(true); });
+      input.addEventListener('blur', function(){
+        var c = resolveCountry(input.value);
+        if(c) input.value = c[1];
+        refresh(false);
+      });
+      refresh(false);
     }
 
     function bindVarietyEvents(){
@@ -1595,6 +1668,7 @@ button.section-label:first-child{ margin-top:2px; }
       if(newCantEl && cantidad !== null) newCantEl.value = cantidad;
       bindPhotoEvents();
       bindVarietyEvents();
+      bindCountryField();
       bindFormActions();
     }
 
@@ -1611,7 +1685,7 @@ button.section-label:first-child{ margin-top:2px; }
           color: color,
           variedades: varieties.filter(function(v){ return v.nombre.trim(); }).map(function(v){ return {nombre:v.nombre.trim(), porcentaje:v.porcentaje?Number(v.porcentaje):''}; }),
           region: document.getElementById('f-region').value.trim(),
-          pais: document.getElementById('f-pais').value,
+          pais: countryCanonical(document.getElementById('f-pais').value),
           ubicacion: document.getElementById('f-ubicacion').value.trim(),
           notas: document.getElementById('f-notas').value.trim(),
           foto: currentFoto
@@ -1631,6 +1705,7 @@ button.section-label:first-child{ margin-top:2px; }
     openSheet();
     bindPhotoEvents();
     bindVarietyEvents();
+    bindCountryField();
     bindFormActions();
   }
 
