@@ -375,6 +375,32 @@ button.section-label:first-child{ margin-top:2px; }
 .country-sugg:empty{ display:none; }
 .field-hint{ font-size:12px; color:var(--text-faint); margin-top:6px; }
 .field-hint:empty{ display:none; }
+.map-toolbar{ display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+.map-wrap{ border-radius:var(--radius); overflow:hidden; border:1px solid var(--border); background:#0e0b11; }
+#map{ height:calc(100dvh - 330px); min-height:340px; width:100%; background:#0e0b11; }
+.map-status{ font-size:12.5px; color:var(--text-faint); margin-top:10px; line-height:1.45; }
+.map-status:empty{ display:none; }
+.wine-pin{ width:44px; height:44px; position:relative; }
+.wine-pin .pin-face{
+  width:100%; height:100%; border-radius:11px; border:2px solid #fff; overflow:hidden; box-sizing:border-box;
+  box-shadow:0 3px 10px rgba(0,0,0,.55); background:var(--surface);
+  display:flex; align-items:center; justify-content:center;
+}
+.wine-pin img{ width:100%; height:100%; object-fit:cover; display:block; }
+.wine-pin .pin-bottle{ width:14px; height:30px; }
+.wine-pin .pin-count{
+  position:absolute; top:-8px; right:-8px; min-width:22px; height:22px; padding:0 6px; border-radius:999px;
+  background:var(--wine); color:#fff; font-family:'IBM Plex Mono', monospace; font-size:11.5px; font-weight:600;
+  display:flex; align-items:center; justify-content:center; border:2px solid #fff;
+}
+.wine-pin.cluster{ width:54px; height:54px; }
+.wine-pin.cluster .pin-face{ border-radius:13px; }
+.leaflet-container{ font-family:'Inter',system-ui,sans-serif; background:#1a1620 !important; }
+/* tiles claros de OSM convertidos a modo oscuro (solo el mapa, no los pines) */
+.leaflet-tile-pane{ filter: invert(1) hue-rotate(190deg) brightness(0.82) contrast(0.92) saturate(0.55); }
+.leaflet-control-attribution{ font-size:9px !important; background:rgba(21,17,26,.7) !important; color:var(--text-faint) !important; }
+.leaflet-control-attribution a{ color:var(--text-dim) !important; }
+.leaflet-bar a{ background:var(--surface) !important; color:var(--text) !important; border-color:var(--border) !important; }
 .photo-pick-row{ display:flex; gap:10px; }
 .photo-pick{
   display:flex; align-items:center; gap:6px; background:var(--surface-2); border:1px solid var(--border);
@@ -463,6 +489,18 @@ button.section-label:first-child{ margin-top:2px; }
     <div id="historial-content"></div>
   </main>
 
+  <!-- MAPA VIEW (prueba) -->
+  <main id="view-mapa" hidden>
+    <div class="map-toolbar">
+      <div class="subtabs" style="padding:0;">
+        <button class="subtab active" data-mapscope="stock">En stock</button>
+        <button class="subtab" data-mapscope="todos">Todos</button>
+      </div>
+    </div>
+    <div class="map-wrap"><div id="map"></div></div>
+    <div class="map-status" id="map-status"></div>
+  </main>
+
   <nav class="tabbar">
     <button class="tab active" data-tab="cava">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 2h6v5.2c0 1 .35 2 1 2.8.85 1.05 1.3 2.35 1.3 3.7V20a2 2 0 0 1-2 2H9.7a2 2 0 0 1-2-2v-6.3c0-1.35.45-2.65 1.3-3.7.65-.8 1-1.8 1-2.8V2z"/></svg>
@@ -471,6 +509,10 @@ button.section-label:first-child{ margin-top:2px; }
     <button class="tab" data-tab="historial">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>
       <span>Historial</span>
+    </button>
+    <button class="tab" data-tab="mapa">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M9 4L3 6.5v13.5l6-2.5 6 2.5 6-2.5V4l-6 2.5L9 4z"/><path d="M9 4v13.5M15 6.5V20"/></svg>
+      <span>Mapa</span>
     </button>
   </nav>
 
@@ -515,7 +557,7 @@ button.section-label:first-child{ margin-top:2px; }
   var LOCAL_EVENTS_KEY = 'cava:events';
   var MIGRATION_FLAG_KEY = 'cava:migrated-to-supabase';
   var POLL_INTERVAL_MS = 25000;
-  var APP_VERSION = '2.8'; // ver historial de versiones en CAVA-documentacion.md
+  var APP_VERSION = '2.9'; // ver historial de versiones en CAVA-documentacion.md
 
   var BOTTLE_SVG = '<svg viewBox="0 0 12 32" fill="currentColor"><path d="M5 0h2v3.6c0 .75.3 1.45.85 2.05C8.55 6.35 9 7.35 9 8.55V29.5A2.5 2.5 0 0 1 6.5 32h-1A2.5 2.5 0 0 1 3 29.5V8.55c0-1.2.45-2.2 1.15-2.9C4.7 5.05 5 4.35 5 3.6V0z"/></svg>';
   var PIN_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 21s-7-6.5-7-11a7 7 0 0 1 14 0c0 4.5-7 11-7 11z"/><circle cx="12" cy="10" r="2.3"/></svg>';
@@ -1164,6 +1206,7 @@ button.section-label:first-child{ margin-top:2px; }
 
   function currentScope(){
     if(state.tab === 'cava') return 'cava';
+    if(state.tab !== 'historial') return null;
     return state.subtab === 'catalogo' ? 'catalogo' : null;
   }
   function currentContainer(){
@@ -1182,6 +1225,217 @@ button.section-label:first-child{ margin-top:2px; }
     var anyOpen = Array.prototype.some.call(heads, function(h){ return !h.classList.contains('collapsed'); });
     tg.textContent = anyOpen ? 'Colapsar todo' : 'Expandir todo';
     tg.setAttribute('data-mode', anyOpen ? 'collapse' : 'expand');
+  }
+
+  /* ---------------- Mapa (prueba v2.9) ----------------
+     - Leaflet + MarkerCluster se cargan recién al abrir la pestaña.
+     - Cada vino se ubica por "región, país" con OpenStreetMap (Nominatim), una consulta
+       por combinación distinta, como máximo 1 por segundo (política de uso de Nominatim).
+     - Las coordenadas se guardan en este teléfono (localStorage 'cava:geo'), no en Supabase.
+       Si la región no se encuentra, se usa el país. Sin región ni país, no aparece. */
+  var GEO_KEY = 'cava:geo';
+  var GEO_RETRY_MS = 3 * 24 * 3600 * 1000;
+  var geoCache = {};
+  try{ geoCache = JSON.parse(localStorage.getItem(GEO_KEY) || '{}') || {}; }catch(e){ geoCache = {}; }
+  function saveGeo(){ try{ localStorage.setItem(GEO_KEY, JSON.stringify(geoCache)); }catch(e){} }
+
+  var mapState = { scope:'stock', map:null, cluster:null, loading:null, geocoding:false, signature:'' };
+
+  function loadLeaflet(){
+    if(window.L && window.L.markerClusterGroup) return Promise.resolve();
+    if(mapState.loading) return mapState.loading;
+    function css(href){ var l = document.createElement('link'); l.rel = 'stylesheet'; l.href = href; document.head.appendChild(l); }
+    function js(src){ return new Promise(function(ok, bad){ var sc = document.createElement('script'); sc.src = src; sc.onload = ok; sc.onerror = bad; document.head.appendChild(sc); }); }
+    css('https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css');
+    css('https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.min.css');
+    mapState.loading = js('https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js')
+      .then(function(){ return js('https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.min.js'); })
+      .catch(function(e){ mapState.loading = null; throw e; });
+    return mapState.loading;
+  }
+
+  function geoKeyRegion(w){
+    var pais = countryCanonical(w.pais), reg = (w.region||'').trim();
+    return reg ? normalize(reg) + '|' + normalize(pais) : null;
+  }
+  function geoKeyCountry(w){
+    var pais = countryCanonical(w.pais);
+    return pais ? '|' + normalize(pais) : null;
+  }
+  function cachedHit(k){ var v = k && geoCache[k]; return (v && v.ll) ? v.ll : null; }
+  function needsLookup(k){
+    if(!k) return false;
+    var v = geoCache[k];
+    if(!v) return true;
+    return !v.ll && (Date.now() - (v.t||0) > GEO_RETRY_MS);
+  }
+  function wineLatLng(w){ return cachedHit(geoKeyRegion(w)) || cachedHit(geoKeyCountry(w)); }
+
+  function nominatim(q){
+    var url = 'https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&accept-language=es&q=' + encodeURIComponent(q);
+    return fetch(url, {headers:{'Accept':'application/json'}}).then(function(r){
+      if(!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    }).then(function(arr){
+      return (arr && arr[0]) ? [Number(arr[0].lat), Number(arr[0].lon)] : null;
+    });
+  }
+  function sleep(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
+
+  async function geocodeMissing(list){
+    if(mapState.geocoding) return;
+    // tras un error de red, esperar 5 minutos antes de volver a intentar (el polling llama seguido)
+    if(mapState.netFailAt && Date.now() - mapState.netFailAt < 5*60*1000) return;
+    // Lista de consultas pendientes: primero región+país; el país solo hace falta si la región falla o no hay región.
+    var jobs = [], seen = {};
+    list.forEach(function(w){
+      var kr = geoKeyRegion(w), kc = geoKeyCountry(w);
+      var pais = countryCanonical(w.pais), reg = (w.region||'').trim();
+      if(kr && needsLookup(kr) && !seen[kr]){ seen[kr] = 1; jobs.push({k:kr, q: pais ? reg + ', ' + pais : reg}); }
+      if(kc && needsLookup(kc) && !seen[kc] && !(kr && cachedHit(kr))){ seen[kc] = 1; jobs.push({k:kc, q:pais, country:true}); }
+    });
+    if(!jobs.length) return;
+    mapState.geocoding = true;
+    var done = 0, failed = 0;
+    for(var i=0;i<jobs.length;i++){
+      var j = jobs[i];
+      // si la región de ese país ya se encontró, no hace falta buscar el país solo
+      if(j.country && list.every(function(w){ return geoKeyCountry(w) !== j.k || cachedHit(geoKeyRegion(w)); })){ done++; continue; }
+      setMapStatus('Ubicando orígenes en el mapa… ' + (done+1) + ' de ' + jobs.length);
+      try{
+        var ll = await nominatim(j.q);
+        geoCache[j.k] = ll ? {ll:ll, t:Date.now()} : {t:Date.now()};
+        if(!ll) failed++;
+      }catch(e){
+        failed++;
+        // error de red / límite: no se guarda; se corta y se reintenta más tarde
+        mapState.netFailAt = Date.now();
+        break;
+      }
+      done++;
+      saveGeo();
+      drawMarkers(true);
+      if(i < jobs.length - 1) await sleep(1100);
+    }
+    mapState.geocoding = false;
+    mapState.fitted = false;
+    drawMarkers(true);
+  }
+
+  function setMapStatus(t){ var el = document.getElementById('map-status'); if(el) el.textContent = t || ''; }
+
+  function mapWines(){
+    var base = mapState.scope === 'stock' ? state.wines.filter(function(w){ return w.stock > 0; }) : state.wines;
+    return visibleWines(base);
+  }
+
+  function pinHTML(w, count, isCluster){
+    var t = typeInfo(w.color);
+    var inner = w.foto ? '<img src="'+w.foto+'" alt="">' :
+      '<span class="pin-bottle" style="color:'+t.color+'">'+BOTTLE_SVG+'</span>';
+    return '<div class="wine-pin'+(isCluster?' cluster':'')+'"><div class="pin-face">'+inner+'</div>'+
+      (count > 1 ? '<span class="pin-count">'+count+'</span>' : '')+'</div>';
+  }
+
+  function openWineListSheet(wines, title){
+    var sheet = document.getElementById('sheet');
+    wines = wines.slice().sort(function(a,b){ return a.bodega.localeCompare(b.bodega, 'es'); });
+    sheet.innerHTML = '<div class="sheet-handle"></div><h2>'+escapeHtml(title)+'</h2>'+
+      '<div class="sub">'+wines.length+' vino'+(wines.length!==1?'s':'')+'</div>'+
+      wines.map(catRowHTML).join('');
+    openSheet();
+    sheet.querySelectorAll('[data-open]').forEach(function(row){
+      row.addEventListener('click', function(e){
+        if(e.target.closest('[data-quickadd]')) return;
+        openDetail(row.getAttribute('data-open'));
+      });
+    });
+    sheet.querySelectorAll('[data-quickadd]').forEach(function(b){
+      b.addEventListener('click', function(e){ e.stopPropagation(); addStock(b.getAttribute('data-quickadd'), 1); closeSheet(); });
+    });
+  }
+
+  function placeLabel(wines){
+    var w = wines[0];
+    var same = wines.every(function(x){ return normalize(x.region||'') === normalize(w.region||'') && countryCanonical(x.pais) === countryCanonical(w.pais); });
+    if(!same) return 'Vinos en esta zona';
+    return [w.region, countryCanonical(w.pais)].filter(function(x){ return x && x.trim(); }).join(', ');
+  }
+
+  function drawMarkers(force){
+    if(!mapState.map) return;
+    var list = mapWines();
+    var placed = [], missing = [];
+    list.forEach(function(w){ var ll = wineLatLng(w); if(ll) placed.push({w:w, ll:ll}); else missing.push(w); });
+    var sig = placed.map(function(p){ return p.w.id+':'+p.ll.join(',')+':'+(p.w.foto?1:0)+':'+p.w.stock; }).join('|');
+    if(!force && sig === mapState.signature) return;
+    mapState.signature = sig;
+    mapState.cluster.clearLayers();
+    placed.forEach(function(p){
+      var m = L.marker(p.ll, {icon: L.divIcon({className:'', html: pinHTML(p.w, 1, false), iconSize:[44,44], iconAnchor:[22,22]})});
+      m.wine = p.w;
+      m.on('click', function(){ openDetail(p.w.id); });
+      mapState.cluster.addLayer(m);
+    });
+    // Encuadrar todos los vinos: al abrir por primera vez, al cambiar En stock/Todos y al terminar de
+    // ubicar orígenes nuevos (salvo que el usuario ya haya movido el mapa).
+    var shouldFit = force === 'fit' || (!mapState.fitted && !mapState.geocoding && !mapState.userMoved);
+    if(shouldFit && placed.length){
+      mapState.map.fitBounds(L.latLngBounds(placed.map(function(p){ return p.ll; })).pad(0.3), {maxZoom: 7, animate:false});
+      mapState.fitted = true;
+    }
+    if(!mapState.geocoding){
+      var sinDato = missing.filter(function(w){ return !geoKeyRegion(w) && !geoKeyCountry(w); }).length;
+      var noEncontrados = missing.length - sinDato;
+      var msg = [];
+      if(!list.length) msg.push('No hay vinos para mostrar con la búsqueda o filtros actuales.');
+      if(sinDato) msg.push(sinDato + ' vino' + (sinDato!==1?'s':'') + ' sin región ni país: no aparece' + (sinDato!==1?'n':'') + ' en el mapa.');
+      if(noEncontrados) msg.push(noEncontrados + ' no se pudo ubicar' + (noEncontrados!==1?'n':'') + ' (se reintenta en unos días).');
+      setMapStatus(msg.join(' '));
+    }
+  }
+
+  async function renderMapa(){
+    if(!mapState.map){
+      setMapStatus('Cargando mapa…');
+      try{ await loadLeaflet(); }
+      catch(e){ setMapStatus('No se pudo cargar el mapa. Revisá la conexión.'); return; }
+      if(mapState.map) return;
+      var map = L.map('map', {zoomControl:true, attributionControl:true, worldCopyJump:true}).setView([-33, -68], 3);
+      // Mapa base de OpenStreetMap (sin clave). Se oscurece por CSS (.leaflet-tile-pane) para la estética de la app.
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 18,
+        attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+      }).addTo(map);
+      var cluster = L.markerClusterGroup({
+        showCoverageOnHover:false, zoomToBoundsOnClick:false, spiderfyOnMaxZoom:false, maxClusterRadius:60,
+        iconCreateFunction: function(c){
+          var ms = c.getAllChildMarkers();
+          var withPhoto = ms.filter(function(m){ return m.wine.foto; })[0] || ms[0];
+          return L.divIcon({className:'', html: pinHTML(withPhoto.wine, ms.length, true), iconSize:[54,54], iconAnchor:[27,27]});
+        }
+      });
+      // Como en Fotos: si el grupo está todo en el mismo lugar (o ya no se puede acercar más), se abre la lista; si no, acerca.
+      cluster.on('clusterclick', function(e){
+        var c = e.layer, ms = c.getAllChildMarkers();
+        var b = c.getBounds();
+        var samePlace = b.getNorthEast().distanceTo(b.getSouthWest()) < 500;
+        if(samePlace || map.getZoom() >= map.getMaxZoom() - 1){
+          openWineListSheet(ms.map(function(m){ return m.wine; }), placeLabel(ms.map(function(m){ return m.wine; })));
+        } else {
+          map.fitBounds(b.pad(0.3));
+        }
+      });
+      map.addLayer(cluster);
+      map.on('dragstart', function(){ mapState.userMoved = true; });
+      map.getContainer().addEventListener('wheel', function(){ mapState.userMoved = true; }, {passive:true});
+      map.getContainer().addEventListener('touchstart', function(e){ if(e.touches.length > 1) mapState.userMoved = true; }, {passive:true});
+      mapState.map = map; mapState.cluster = cluster;
+      setMapStatus('');
+    }
+    setTimeout(function(){ mapState.map.invalidateSize(); }, 50);
+    drawMarkers(false);
+    geocodeMissing(mapWines());
   }
 
   /* ---------------- Rendering: Cava tab ---------------- */
@@ -1410,7 +1664,10 @@ button.section-label:first-child{ margin-top:2px; }
     updateSortBar();
   }
   function renderView(){
-    if(state.tab === 'cava'){ renderCava(); } else { renderHistorial(); }
+    document.getElementById('fab').hidden = state.tab === 'mapa';
+    if(state.tab === 'cava'){ renderCava(); }
+    else if(state.tab === 'mapa'){ renderMapa(); }
+    else { renderHistorial(); }
   }
 
   /* ---------------- Detail sheet ---------------- */
@@ -1737,6 +1994,7 @@ button.section-label:first-child{ margin-top:2px; }
       document.querySelectorAll('.tab').forEach(function(b){ b.classList.toggle('active', b===btn); });
       document.getElementById('view-cava').hidden = state.tab !== 'cava';
       document.getElementById('view-historial').hidden = state.tab !== 'historial';
+      document.getElementById('view-mapa').hidden = state.tab !== 'mapa';
       render();
     });
   });
@@ -1748,6 +2006,15 @@ button.section-label:first-child{ margin-top:2px; }
     });
   });
   document.getElementById('filter-btn').addEventListener('click', openFilterSheet);
+  document.querySelectorAll('[data-mapscope]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      mapState.scope = btn.getAttribute('data-mapscope');
+      document.querySelectorAll('[data-mapscope]').forEach(function(b){ b.classList.toggle('active', b===btn); });
+      mapState.signature = '';
+      if(mapState.map) drawMarkers('fit');
+      geocodeMissing(mapWines());
+    });
+  });
   document.getElementById('sort-by').addEventListener('change', function(e){
     prefs.sortBy = e.target.value;
     savePrefs();
