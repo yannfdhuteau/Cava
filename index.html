@@ -211,6 +211,9 @@ button.section-label:first-child{ margin-top:2px; }
 }
 .card-variety{ font-size:12.5px; color:var(--text-dim); margin-top:3px; }
 .card-region{ font-size:11.5px; color:var(--text-faint); margin-top:3px; }
+.card-uncorks{ font-family:'IBM Plex Mono', monospace; font-size:11.5px; color:var(--text-dim); margin-top:4px; }
+.detail-uncorks{ text-align:center; font-family:'IBM Plex Mono', monospace; font-size:12.5px; color:var(--text-dim); margin:-6px 0 16px; line-height:1.6; }
+.detail-uncorks span{ color:var(--text-faint); }
 .card-location{ font-size:11.5px; color:var(--gold); margin-top:3px; display:flex; align-items:center; }
 .card-location svg{ width:11px; height:11px; margin-right:4px; flex-shrink:0; }
 
@@ -585,7 +588,7 @@ button.section-label:first-child{ margin-top:2px; }
   var LOCAL_EVENTS_KEY = 'cava:events';
   var MIGRATION_FLAG_KEY = 'cava:migrated-to-supabase';
   var POLL_INTERVAL_MS = 25000;
-  var APP_VERSION = '2.11'; // ver historial de versiones en CAVA-documentacion.md
+  var APP_VERSION = '2.12'; // ver historial de versiones en CAVA-documentacion.md
 
   var BOTTLE_SVG = '<svg viewBox="0 0 12 32" fill="currentColor"><path d="M5 0h2v3.6c0 .75.3 1.45.85 2.05C8.55 6.35 9 7.35 9 8.55V29.5A2.5 2.5 0 0 1 6.5 32h-1A2.5 2.5 0 0 1 3 29.5V8.55c0-1.2.45-2.2 1.15-2.9C4.7 5.05 5 4.35 5 3.6V0z"/></svg>';
   var PIN_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 21s-7-6.5-7-11a7 7 0 0 1 14 0c0 4.5-7 11-7 11z"/><circle cx="12" cy="10" r="2.3"/></svg>';
@@ -1035,7 +1038,7 @@ button.section-label:first-child{ margin-top:2px; }
 
     var bar = document.getElementById('active-filters');
     var f = state.filters;
-    if(n === 0 || state.tab === 'historial' && state.subtab === 'registro'){ bar.hidden = true; bar.innerHTML = ''; return; }
+    if(n === 0){ bar.hidden = true; bar.innerHTML = ''; return; }
     var labels = [];
     if(f.color) labels.push(typeInfo(f.color).label);
     if(f.tipo) labels.push(f.tipo === 'varietal' ? 'Varietal' : f.tipo === 'blend' ? 'Blend' : f.tipo === 'espumante' ? 'Espumante' : 'Sin variedad');
@@ -1689,7 +1692,25 @@ button.section-label:first-child{ margin-top:2px; }
     });
   }
 
+  // Cuántas veces se descorchó un vino y el promedio de las calificaciones cargadas.
+  function uncorkStats(wineId){
+    var n = 0, sum = 0, rated = 0, last = null;
+    state.events.forEach(function(ev){
+      if(ev.wineId !== wineId || ev.tipo !== 'consumido') return;
+      n += (ev.cantidad || 1);
+      if(ev.rating){ sum += ev.rating; rated++; }
+      if(!last || ev.fecha > last) last = ev.fecha;
+    });
+    return { n:n, avg: rated ? sum / rated : null, rated: rated, last: last };
+  }
+  function fmtAvg(x){ return (Math.round(x * 10) / 10).toString().replace('.', ','); }
+  function uncorkLine(st){
+    if(!st.n) return '';
+    return 'Descorchado ' + st.n + (st.n === 1 ? ' vez' : ' veces') + (st.avg !== null ? ' · ' + fmtAvg(st.avg) + '/10' : '');
+  }
+
   function catRowHTML(w){
+      var st = uncorkStats(w.id);
       var t = typeInfo(w.color);
       var vt = varietyText(w);
       return '<div class="cat-row" data-open="'+w.id+'">'+
@@ -1701,6 +1722,7 @@ button.section-label:first-child{ margin-top:2px; }
             '<div class="card-meta">'+t.label+' · '+(w.anio || 'S/A')+(vt ? ' · '+vt : '')+'</div>'+
             (originText(w) ? '<div class="card-region">'+originText(w)+'</div>' : '')+
             (w.ubicacion ? '<div class="card-location">'+PIN_SVG+escapeHtml(w.ubicacion)+'</div>' : '')+
+            (st.n ? '<div class="card-uncorks">'+uncorkLine(st)+'</div>' : '')+
           '</div>'+
         '</div>'+
         '<div style="display:flex; flex-direction:column; align-items:flex-end; gap:8px;">'+
@@ -1710,10 +1732,31 @@ button.section-label:first-child{ margin-top:2px; }
       '</div>';
   }
 
+  // Un movimiento coincide con la búsqueda si coincide su vino (datos guardados en el
+  // movimiento + datos actuales del vino si todavía existe), su nota o el tipo de movimiento.
+  function eventMatches(ev){
+    var q = normalize(state.search);
+    var w = findWine(ev.wineId);
+    if(activeFilterCount() > 0){
+      if(!w || !matchesFilters(w)) return false;
+    }
+    if(!q) return true;
+    var snap = ev.snapshot || {};
+    var hay = normalize([snap.bodega, snap.linea, snap.anio, ev.nota,
+      ev.tipo === 'consumido' ? 'descorchada descorche' : 'agregada'].join(' '));
+    if(hay.indexOf(q) !== -1) return true;
+    return !!(w && matchesSearch(w, q));
+  }
+
   function renderRegistro(el){
     if(state.events.length===0){ el.innerHTML = emptyStateHTML('registro-vacio'); return; }
+    var events = state.events.filter(eventMatches);
+    if(events.length === 0){
+      el.innerHTML = '<div class="empty"><h3>Sin resultados</h3><p>No hay movimientos que coincidan con tu búsqueda o filtros.</p></div>';
+      return;
+    }
     var html = '<div class="card" style="padding:4px 14px;">';
-    state.events.forEach(function(ev, i){
+    events.forEach(function(ev, i){
       var isUncork = ev.tipo === 'consumido';
       var name = ev.snapshot.bodega + (ev.snapshot.linea ? ' — '+ev.snapshot.linea : '') + (ev.snapshot.anio ? ' ('+ev.snapshot.anio+')' : '');
       html += '<div class="log-row"'+(isUncork ? ' data-edit-event="'+ev.id+'"' : '')+'>'+
@@ -1849,6 +1892,12 @@ button.section-label:first-child{ margin-top:2px; }
     }
 
     html += '<div style="display:flex; align-items:center; justify-content:center; margin-bottom:16px;">'+bottlesHTML(w.stock, t.color)+'</div>';
+    var ust = uncorkStats(w.id);
+    if(ust.n){
+      html += '<div class="detail-uncorks">'+uncorkLine(ust)+
+        (ust.rated && ust.rated < ust.n ? ' <span>('+ust.rated+' con calificación)</span>' : '')+
+        '<br><span>Último: '+fmtDate(ust.last)+'</span></div>';
+    }
 
     if(w.notas){ html += '<div class="detail-notes">'+escapeHtml(w.notas)+'</div>'; }
 
